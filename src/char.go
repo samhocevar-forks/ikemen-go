@@ -5920,7 +5920,11 @@ func (c *Char) cueDraw() {
 			if c.sf(CSF_trans) {
 				sa = 255 - c.alpha[1]
 			}
-			sys.sprites.add(sd, sc, sa, float32(c.size.shadowoffset), c.offsetY())
+			if c.sprPriority <= -10 {
+				sys.bottomSprites.add(sd, sc, sa, float32(c.size.shadowoffset), c.offsetY())
+			} else {
+				sys.sprites.add(sd, sc, sa, float32(c.size.shadowoffset), c.offsetY())
+			}
 		}
 	}
 	if sys.tickNextFrame() {
