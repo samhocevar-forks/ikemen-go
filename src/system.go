@@ -1655,10 +1655,10 @@ func (s *System) drawDebug() {
 			(float32(len(s.listLFunc))+float32(s.clipboardRows)) - 1*s.heightScale
 		for i, f := range s.listLFunc {
 			if f != nil {
-				if i == 1 {
+				if i == 2 {
 					s.debugFont.SetColor(199, 199, 219)
-				} else if (i == 2 && s.debugWC.animPN != s.debugWC.playerNo) ||
-					(i == 3 && s.debugWC.ss.sb.playerNo != s.debugWC.playerNo) {
+				} else if (i == 3 && s.debugWC.animPN != s.debugWC.playerNo) ||
+					(i == 4 && s.debugWC.ss.sb.playerNo != s.debugWC.playerNo) {
 					s.debugFont.SetColor(255, 255, 127)
 				} else {
 					s.debugFont.SetColor(255, 255, 255)
@@ -1668,7 +1668,7 @@ func (s *System) drawDebug() {
 					Protect: true}) == nil {
 					s, ok := s.luaLState.Get(-1).(lua.LString)
 					if ok && len(s) > 0 {
-						if i == 1 && (sys.debugWC == nil || sys.debugWC.sf(CSF_destroy)) {
+						if i == 2 && (sys.debugWC == nil || sys.debugWC.sf(CSF_destroy)) {
 							put(&x, &y, string(s)+" disabled")
 							break
 						}

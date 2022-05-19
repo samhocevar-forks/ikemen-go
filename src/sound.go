@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"runtime"
 
 	"github.com/faiface/beep"
 	"github.com/faiface/beep/effects"
@@ -186,6 +187,8 @@ func (bgm *Bgm) UpdateVolume() {
 // ------------------------------------------------------------------
 // Sound
 
+var totalSz int64
+
 type Sound struct {
 	wavData []byte
 	format beep.Format
@@ -202,6 +205,16 @@ func readSound(f *os.File, size uint32) (*Sound, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Track allocation size in the global stats
+	datasize := float64(s.Len() * fmt.Width()) / (1024 * 1024)
+	UpdateStat(StatSoundCount, 1)
+	UpdateStat(StatSoundMemory, datasize)
+	runtime.SetFinalizer(s, func (*Sound) {
+		UpdateStat(StatSoundCount, -1)
+		UpdateStat(StatSoundMemory, datasize)
+	})
+
 	return &Sound{wavData, fmt, s.Len()}, nil
 }
 

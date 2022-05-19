@@ -2293,6 +2293,25 @@ func systemScriptInit(l *lua.LState) {
 		l.Push(lua.LNumber(Random()))
 		return 1
 	})
+	luaRegister(l, "stat", func(l *lua.LState) int {
+		name := StatRAM
+		switch strArg(l, 1) {
+		case "ram":
+			name = StatRAM
+		case "vram":
+			name = StatVRAM
+		case "sound_count":
+			name = StatSoundCount
+		case "sound_memory":
+			name = StatSoundMemory
+		case "texture_count":
+			name = StatTextureCount
+		case "texture_memory":
+			name = StatTextureMemory
+		}
+		l.Push(lua.LNumber(GetStat(name)))
+		return 1
+	})
 	luaRegister(l, "step", func(*lua.LState) int {
 		sys.step = true
 		return 0

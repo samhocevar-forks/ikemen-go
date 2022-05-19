@@ -147,6 +147,12 @@ function engineInfo()
 	return string.format('Frames: %d, VSync: %d; Speed: %d/%d%%', tickcount(), vsync(), gameLogicSpeed(), gamespeed())
 end
 
+function memInfo()
+	return string.format('RAM: %dM (%d sounds, %dM); VRAM: %dM (%d textures, %dM)',
+		 stat("ram"), stat("sound_count"), stat("sound_memory"),
+		 stat("vram"), stat("texture_count"), stat("texture_memory"))
+end
+
 function playerInfo()
 	return string.format('%s %d%s', name(), id(), customState())
 end
@@ -165,7 +171,7 @@ function stateInfo()
 	)
 end
 
-loadDebugInfo({'engineInfo', 'playerInfo', 'actionInfo', 'stateInfo'})
+loadDebugInfo({'engineInfo', 'memInfo', 'playerInfo', 'actionInfo', 'stateInfo'})
 
 --;===========================================================
 --; MATCH LOOP
