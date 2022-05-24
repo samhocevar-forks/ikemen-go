@@ -90,9 +90,9 @@ func main() {
 	// Begin processing game using its lua scripts
 	if err := sys.luaLState.DoFile(tmp.System); err != nil {
 		// Display error logs.
-		errorLog := createLog("Ikemen.log")
-		defer closeLog(errorLog)
-		fmt.Fprintln(errorLog, err)
+		//errorLog := createLog("Ikemen.log")
+		//defer closeLog(errorLog)
+		//fmt.Fprintln(errorLog, err)
 		switch err.(type) {
 		case *lua.ApiError:
 			errstr := strings.Split(err.Error(), "\n")[0]
@@ -615,7 +615,8 @@ func setupConfig() configSettings {
 	}
 	// Save config file
 	cfg, _ := json.MarshalIndent(tmp, "", "	")
-	chk(ioutil.WriteFile(cfgPath, cfg, 0644))
+	//chk(ioutil.WriteFile(cfgPath, cfg, 0644))
+	ioutil.WriteFile(cfgPath, cfg, 0644)
 
 	// Set each config property to the system object
 	sys.afterImageMax = tmp.MaxAfterImage

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"syscall/js"
 )
@@ -34,5 +35,5 @@ func ShowErrorDialog(message string) {
 
 // TTF font loading stub
 func LoadFntTtf(f *Fnt, fontfile string, filename string, height int32) {
-	panic(Error("TrueType fonts are not supported on this platform"))
+	panic(fmt.Errorf("Could not load %s (from %s): TrueType fonts are not supported on this platform", filename, fontfile))
 }

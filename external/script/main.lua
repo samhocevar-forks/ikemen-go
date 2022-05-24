@@ -21,8 +21,8 @@ json = (loadfile 'external/script/json.lua')()
 function main.f_fileRead(path, mode)
 	local file = io.open(path, mode or 'r')
 	if file == nil then
-		panicError("\nFile doesn't exist: " .. path)
-		return
+		--panicError("\nFile doesn't exist: " .. path)
+		return ""
 	end
 	local str = file:read("*all")
 	file:close()
@@ -36,7 +36,7 @@ function main.f_fileWrite(path, str, mode)
 	end
 	local file = io.open(path, mode or 'w+')
 	if file == nil then
-		panicError("\nFile doesn't exist: " .. path)
+		--panicError("\nFile doesn't exist: " .. path)
 		return
 	end
 	file:write(str)

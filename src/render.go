@@ -98,6 +98,15 @@ uniform bool isRgba, isTrapez, neg;
 
 varying vec2 texcoord;
 
+vec3 remap(vec3 c, vec3 src, vec3 dst) {
+    vec3 p = normalize(c);
+    vec3 q = normalize(src);
+    if (dot(p, q) >= 0.98) {
+        return mix(c, dot(c, q) * dst, dot(p, q));
+    }
+    return c;
+}
+
 void main(void) {
 	vec2 uv = texcoord;
 	if (isTrapez) {
@@ -123,6 +132,10 @@ void main(void) {
 	}
 	if (neg) c.rgb = neg_base - c.rgb;
 	c.rgb = mix(c.rgb, vec3((c.r + c.g + c.b) / 3.0), gray) + final_add;
+
+        c.rgb = remap(c.rgb, vec3(.1020, .5216, .4588), vec3(.7, .1, .1));
+        c.rgb = remap(c.rgb, vec3(.5373, .5725, .2627), vec3(.1, .2, .6));
+
 	gl_FragColor = c * final_mul;
 }`
 
