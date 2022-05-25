@@ -489,6 +489,65 @@ func rmTileSub(s *Shader, modelview mgl.Mat4, w, h uint16, x, y float32, tl *[4]
 		}
 	}
 }
+
+func renderWithBlending(trans, renderMode int32, shader *Shader, render func()) {
+	gl.Enable(gl.BLEND)
+	switch {
+	case trans == -1:
+		gl.Uniform1f(shader.uAlpha, 1)
+		if renderMode == 1 {
+			gl.BlendFunc(gl.SRC_ALPHA, gl.ONE)
+		} else {
+			gl.BlendFunc(gl.ONE, gl.ONE)
+		}
+		gl.BlendEquation(gl.FUNC_ADD)
+		render()
+	case trans == -2:
+		gl.Uniform1f(shader.uAlpha, 1)
+		gl.BlendFunc(gl.ONE, gl.ONE)
+		gl.BlendEquation(gl.FUNC_REVERSE_SUBTRACT)
+		render()
+	case trans <= 0:
+	case trans < 255:
+		gl.Uniform1f(shader.uAlpha, float32(trans)/255)
+		if renderMode == 1 {
+			gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+		} else {
+			gl.BlendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+		}
+		gl.BlendEquation(gl.FUNC_ADD)
+		render()
+	case trans < 512:
+		gl.Uniform1f(shader.uAlpha, 1)
+		if renderMode == 1 {
+			gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+		} else {
+			gl.BlendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+		}
+		gl.BlendEquation(gl.FUNC_ADD)
+		render()
+	default:
+		src, dst := trans&0xff, trans>>10&0xff
+		if dst < 255 {
+			gl.Uniform1f(shader.uAlpha, 1-float32(dst)/255)
+			gl.BlendFunc(gl.ZERO, gl.ONE_MINUS_SRC_ALPHA)
+			gl.BlendEquation(gl.FUNC_ADD)
+			render()
+		}
+		if src > 0 {
+			gl.Uniform1f(shader.uAlpha, float32(src)/255)
+			if renderMode == 1 {
+				gl.BlendFunc(gl.SRC_ALPHA, gl.ONE)
+			} else {
+				gl.BlendFunc(gl.ONE, gl.ONE)
+			}
+			gl.BlendEquation(gl.FUNC_ADD)
+			render()
+		}
+	}
+	gl.Disable(gl.BLEND)
+}
+
 func rmMainSub(s *Shader, size [2]uint16, x, y float32, tl *[4]int32,
 	xts, xbs, ys, vs, rxadd, agl, yagl, xagl float32, renderMode, trans int32, rcx, rcy float32, neg bool, color float32,
 	padd, pmul *[3]float32, projectionMode int32, fLength, xOffset, yOffset float32) {
@@ -497,74 +556,18 @@ func rmMainSub(s *Shader, size [2]uint16, x, y float32, tl *[4]int32,
 	gl.UniformMatrix4fv(s.uProjection, 1, false, &proj[0])
 
 	modelview := mgl.Translate3D(0, float32(sys.scrrect[3]), 0)
-	switch {
-	case trans == -1:
-		gl.Uniform1f(s.uAlpha, 1)
-		if renderMode == 1 {
-			gl.BlendFunc(gl.SRC_ALPHA, gl.ONE)
-		} else {
-			gl.BlendFunc(gl.ONE, gl.ONE)
-		}
-		gl.BlendEquation(gl.FUNC_ADD)
-		rmTileSub(s, modelview, size[0], size[1], x, y, tl, xts, xbs, ys, vs, rxadd,
-			agl, yagl, xagl, rcx, rcy, projectionMode, fLength, xOffset, yOffset)
-	case trans == -2:
-		gl.Uniform1f(s.uAlpha, 1)
-		gl.BlendFunc(gl.ONE, gl.ONE)
-		gl.BlendEquation(gl.FUNC_REVERSE_SUBTRACT)
-		rmTileSub(s, modelview, size[0], size[1], x, y, tl, xts, xbs, ys, vs, rxadd,
-			agl, yagl, xagl, rcx, rcy, projectionMode, fLength, xOffset, yOffset)
-	case trans <= 0:
-	case trans < 255:
-		gl.Uniform1f(s.uAlpha, float32(trans)/255)
-		if renderMode == 1 {
-			gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-		} else {
-			gl.BlendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
-		}
-		gl.BlendEquation(gl.FUNC_ADD)
-		rmTileSub(s, modelview, size[0], size[1], x, y, tl, xts, xbs, ys, vs, rxadd,
-			agl, yagl, xagl, rcx, rcy, projectionMode, fLength, xOffset, yOffset)
-	case trans < 512:
-		gl.Uniform1f(s.uAlpha, 1)
-		if renderMode == 1 {
-			gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-		} else {
-			gl.BlendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
-		}
-		gl.BlendEquation(gl.FUNC_ADD)
-		rmTileSub(s, modelview, size[0], size[1], x, y, tl, xts, xbs, ys, vs, rxadd,
-			agl, yagl, xagl, rcx, rcy, projectionMode, fLength, xOffset, yOffset)
-	default:
-		src, dst := trans&0xff, trans>>10&0xff
-		aglOver := 0
-		if dst < 255 {
-			gl.Uniform1f(s.uAlpha, 1-float32(dst)/255)
-			gl.BlendFunc(gl.ZERO, gl.ONE_MINUS_SRC_ALPHA)
-			gl.BlendEquation(gl.FUNC_ADD)
-			rmTileSub(s, modelview, size[0], size[1], x, y, tl, xts, xbs, ys, vs, rxadd,
-				agl, yagl, xagl, rcx, rcy, projectionMode, fLength, xOffset, yOffset)
-			aglOver++
-		}
-		if src > 0 {
-			if aglOver != 0 {
-				agl = 0
-				yagl = 0
-				xagl = 0
-			}
-			gl.Uniform1f(s.uAlpha, float32(src)/255)
 
-			if renderMode == 1 {
-				gl.BlendFunc(gl.SRC_ALPHA, gl.ONE)
-			} else {
-				gl.BlendFunc(gl.ONE, gl.ONE)
-			}
-			gl.BlendEquation(gl.FUNC_ADD)
-			rmTileSub(s, modelview, size[0], size[1], x, y, tl, xts, xbs, ys, vs, rxadd,
-				agl, yagl, xagl, rcx, rcy, projectionMode, fLength, xOffset, yOffset)
+	aglOver := 0
+	renderWithBlending(renderMode, trans, s, func() {
+		if aglOver != 0 {
+			agl, xagl, yagl = 0, 0, 0
 		}
-	}
+		rmTileSub(s, modelview, size[0], size[1], x, y, tl, xts, xbs, ys, vs, rxadd,
+			agl, yagl, xagl, rcx, rcy, projectionMode, fLength, xOffset, yOffset)
+		aglOver++
+	})
 }
+
 func rmInitSub(size [2]uint16, x, y *float32, tile *[4]int32, xts float32,
 	ys, vs, agl, yagl, xagl *float32, window *[4]int32, rcx float32, rcy *float32) (
 	tl [4]int32) {
@@ -594,7 +597,6 @@ func rmInitSub(size [2]uint16, x, y *float32, tile *[4]int32, xts float32,
 		*y *= -1
 	}
 	*y += *rcy
-	gl.Enable(gl.BLEND)
 	gl.Enable(gl.SCISSOR_TEST)
 	gl.Scissor((*window)[0], sys.scrrect[3]-((*window)[1]+(*window)[3]),
 		(*window)[2], (*window)[3])
@@ -624,7 +626,6 @@ func RenderMugenPal(tex Texture, mask int32, size [2]uint16,
 	rmMainSub(mainShader, size, x, y, &tl, xts, xbs, ys, vs, rxadd, agl, yagl, xagl,
 		1, trans, rcx, rcy, neg, color, padd, pmul, projectionMode, fLength, xOffset, yOffset)
 	gl.Disable(gl.SCISSOR_TEST)
-	gl.Disable(gl.BLEND)
 }
 
 func RenderMugen(tex Texture, pal []uint32, mask int32, size [2]uint16,
@@ -663,7 +664,6 @@ func RenderMugenFc(tex Texture, size [2]uint16, x, y float32,
 	rmMainSub(mainShader, size, x, y, &tl, xts, xbs, ys, vs, rxadd, agl, yagl, xagl,
 		2, trans, rcx, rcy, neg, color, padd, pmul, projectionMode, fLength, xOffset, yOffset)
 	gl.Disable(gl.SCISSOR_TEST)
-	gl.Disable(gl.BLEND)
 }
 func RenderMugenFcS(tex Texture, size [2]uint16, x, y float32,
 	tile *[4]int32, xts, xbs, ys, vs, rxadd, agl, yagl, xagl float32, trans int32,
@@ -682,21 +682,13 @@ func RenderMugenFcS(tex Texture, size [2]uint16, x, y float32,
 	rmMainSub(flatShader, size, x, y, &tl, xts, xbs, ys, vs, rxadd, agl, yagl, xagl,
 		0, trans, rcx, rcy, false, 1, &[3]float32{0, 0, 0}, &[3]float32{1, 1, 1}, projectionMode, fLength, xOffset, yOffset)
 	gl.Disable(gl.SCISSOR_TEST)
-	gl.Disable(gl.BLEND)
 }
 func FillRect(rect [4]int32, color uint32, trans int32) {
 	r := float32(color>>16&0xff) / 255
 	g := float32(color>>8&0xff) / 255
 	b := float32(color&0xff) / 255
-	fill := func(a float32) {
-		gl.Uniform1f(flatShader.uAlpha, a)
-		gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
-	}
-
 	modelview := mgl.Translate3D(0, float32(sys.scrrect[3]), 0)
 	proj := mgl.Ortho(0, float32(sys.scrrect[2]), 0, float32(sys.scrrect[3]), -65535, 65535)
-
-	gl.Enable(gl.BLEND)
 
 	gl.UseProgram(flatShader.program)
 	gl.UniformMatrix4fv(flatShader.uModelView, 1, false, &modelview[0])
@@ -710,38 +702,9 @@ func FillRect(rect [4]int32, color uint32, trans int32) {
 	vertexPosition := [8]float32{x2, y2, x2, y1, x1, y2, x1, y1}
 	gl.EnableVertexAttribArray(uint32(flatShader.aPos))
 	gl.VertexAttribPointer(uint32(flatShader.aPos), 2, gl.FLOAT, false, 0, unsafe.Pointer(&vertexPosition[0]))
-
-	if trans == -1 {
-		gl.BlendFunc(gl.SRC_ALPHA, gl.ONE)
-		gl.BlendEquation(gl.FUNC_ADD)
-		fill(1)
-	} else if trans == -2 {
-		gl.BlendFunc(gl.ONE, gl.ONE)
-		gl.BlendEquation(gl.FUNC_REVERSE_SUBTRACT)
-		fill(1)
-	} else if trans <= 0 {
-	} else if trans < 255 {
-		gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-		gl.BlendEquation(gl.FUNC_ADD)
-		fill(float32(trans) / 256)
-	} else if trans < 512 {
-		gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-		gl.BlendEquation(gl.FUNC_ADD)
-		fill(1)
-	} else {
-		src, dst := trans&0xff, trans>>10&0xff
-		if dst < 255 {
-			gl.BlendFunc(gl.ZERO, gl.ONE_MINUS_SRC_ALPHA)
-			gl.BlendEquation(gl.FUNC_ADD)
-			fill(float32(dst) / 255)
-		}
-		if src > 0 {
-			gl.BlendFunc(gl.SRC_ALPHA, gl.ONE)
-			gl.BlendEquation(gl.FUNC_ADD)
-			fill(float32(src) / 255)
-		}
-	}
-	gl.Disable(gl.BLEND)
+	renderWithBlending(1, trans, flatShader, func() {
+		gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
+	})
 }
 
 var identVertShader string = `
