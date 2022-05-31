@@ -2461,7 +2461,7 @@ main.t_itemname = {
 			main.teamarcade = true
 		end
 		main.versusScreen = true
-		main.versusMatchNo = true
+		main.versusMatchNo = false -- no versusMatchNo in arcade mode
 		main.victoryScreen = true
 		main.f_setCredits()
 		setGameMode('arcade')
@@ -3058,7 +3058,7 @@ function main.f_createMenu(tbl, bool_bgreset, bool_main, bool_f1, bool_del)
 				cnt = cnt + 1
 			end
 		end
-		if main.t_itemname[f] ~= nil and cnt == 1 --[[and motif.attract_mode.enabled == 0]] then
+		if main.t_itemname[f] ~= nil and cnt == 1 --[[and motif.attract_mode.enabled == 0]] and false then
 			main.f_default()
 			main.menu.f = main.t_itemname[f](t, item)
 			main.f_unlock(false)
@@ -3114,7 +3114,7 @@ function main.f_createMenu(tbl, bool_bgreset, bool_main, bool_f1, bool_del)
 					demoFrameCounter = 0
 					introWaitCycles = 0
 				end
-				if esc() or main.f_input(main.t_players, {'m'}) then
+				if esc() or main.f_input(main.t_players, {'DISABLED_m'}) then
 					if not bool_main then
 						sndPlay(motif.files.snd_data, motif[main.group].cancel_snd[1], motif[main.group].cancel_snd[2])
 					elseif not esc() and t[item].itemname ~= 'exit' then
@@ -3356,7 +3356,7 @@ function main.f_replay()
 			main.f_playBGM(false, motif.music.title_bgm, motif.music.title_bgm_loop, motif.music.title_bgm_volume, motif.music.title_bgm_loopstart, motif.music.title_bgm_loopend)
 			main.close = false
 			break
-		elseif esc() or main.f_input(main.t_players, {'m'}) or (t[item].itemname == 'back' and main.f_input(main.t_players, {'pal', 's'})) then
+		elseif esc() or main.f_input(main.t_players, {'DISABLED_m'}) or (t[item].itemname == 'back' and main.f_input(main.t_players, {'pal', 's'})) then
 			sndPlay(motif.files.snd_data, motif.replay_info.cancel_snd[1], motif.replay_info.cancel_snd[2])
 			main.f_fadeReset('fadeout', motif.replay_info)
 			main.close = true
@@ -3379,7 +3379,7 @@ local overlay_connecting = main.f_createOverlay(motif.title_info, 'connecting_ov
 function main.f_connect(server, t)
 	enterNetPlay(server)
 	while not connected() do
-		if esc() or main.f_input(main.t_players, {'m'}) then
+		if esc() or main.f_input(main.t_players, {'DISABLED_m'}) then
 			sndPlay(motif.files.snd_data, motif.title_info.cancel_snd[1], motif.title_info.cancel_snd[2])
 			exitNetPlay()
 			return false
@@ -4014,11 +4014,11 @@ function main.f_menuCommonDraw(t, item, cursorPosY, moveTxt, section, bgdef, tit
 	bgDraw(motif[bgdef].bg, true)
 	--draw footer overlay
 	if motif[section].footer_overlay_window ~= nil then
-		overlay_footer:draw()
+		--overlay_footer:draw()
 	end
 	--draw footer text
 	for i = 1, #footer_txt do
-		footer_txt[i]:draw()
+		--footer_txt[i]:draw()
 	end
 	--draw fadein / fadeout
 	main.f_fadeAnim(main.fadeGroup)

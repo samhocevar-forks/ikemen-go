@@ -325,7 +325,7 @@ options.t_itemname = {
 	end,
 	--Rounds to Win (Single)
 	['roundsnumsingle'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F'}) and main.roundsNumSingle[1] < 10 then
+		if main.f_input(main.t_players, {'$F'}) and main.roundsNumSingle[1] < 5 then
 			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
 			config.RoundsNumSingle = main.roundsNumSingle[1] + 1
 			main.roundsNumSingle = {config.RoundsNumSingle, config.RoundsNumSingle}
@@ -532,7 +532,7 @@ options.t_itemname = {
 	end,
 	--Rounds to Win (Tag)
 	['roundsnumtag'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F'}) and main.roundsNumTag[1] < 10 then
+		if main.f_input(main.t_players, {'$F'}) and main.roundsNumTag[1] < 5 then
 			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
 			config.RoundsNumTag = main.roundsNumTag[1] + 1
 			main.roundsNumTag = {config.RoundsNumTag, config.RoundsNumTag}
@@ -594,7 +594,7 @@ options.t_itemname = {
 	end,
 	--Rounds to Win (Simul)
 	['roundsnumsimul'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F'}) and main.roundsNumSimul[1] < 10 then
+		if main.f_input(main.t_players, {'$F'}) and main.roundsNumSimul[1] < 5 then
 			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
 			config.RoundsNumSimul = main.roundsNumSimul[1] + 1
 			main.roundsNumSimul = {config.RoundsNumSimul, config.RoundsNumSimul}
@@ -1226,7 +1226,7 @@ function options.f_createMenu(tbl, bool_main)
 				main.f_playBGM(false, motif.music.title_bgm, motif.music.title_bgm_loop, motif.music.title_bgm_volume, motif.music.title_bgm_loopstart, motif.music.title_bgm_loopend)
 				main.close = false
 				break
-			elseif esc() or main.f_input(main.t_players, {'m'}) then
+			elseif esc() or main.f_input(main.t_players, {'DISABLED_m'}) then
 				sndPlay(motif.files.snd_data, motif.option_info.cancel_snd[1], motif.option_info.cancel_snd[2])
 				if bool_main then
 					if options.modified then
@@ -1834,7 +1834,7 @@ function options.f_keyCfg(cfgType, controller, bgdef, skipClear)
 	else
 		key = getKey()
 		--back
-		if esc() or main.f_input(main.t_players, {'m'}) or (t[item].itemname == 'page' and (side == 1 or #config[cfgType] <= 2) and main.f_input(main.t_players, {'pal', 's'})) then
+		if esc() or main.f_input(main.t_players, {'DISABLED_m'}) or (t[item].itemname == 'page' and (side == 1 or #config[cfgType] <= 2) and main.f_input(main.t_players, {'pal', 's'})) then
 			if t_conflict[joyNum] then
 				if not main.f_warning(main.f_extractText(motif.warning_info.text_keys_text), motif.optionbgdef) then
 					options.txt_title:update({text = motif.option_info.title_input_text})

@@ -265,7 +265,7 @@ function menu.f_createMenu(tbl, section, bgdef, txt_title, bool_main)
 		end
 		tbl.cursorPosY, tbl.moveTxt, tbl.item = main.f_menuCommonCalc(t, tbl.item, tbl.cursorPosY, tbl.moveTxt, section, {'$U'}, {'$D'})
 		txt_title:update({text = tbl.title})
-		if esc() or main.f_input(main.t_players, {'m'}) then
+		if esc() or main.f_input(main.t_players, {'DISABLED_m'}) then
 			if bool_main then
 				togglePause(false)
 				main.pauseMenu = false
@@ -605,7 +605,7 @@ function menu.f_commandlistRender(section, t)
 	else
 		table.insert(cmdList, {{glyph = false, text = motif[section].movelist_text_text, align = 1, col = {}}})
 	end
-	if esc() or main.f_input(main.t_players, {'m'}) then
+	if esc() or main.f_input(main.t_players, {'DISABLED_m'}) then
 		sndPlay(motif.files.snd_data, motif[section].cancel_snd[1], motif[section].cancel_snd[2])
 		menu.itemname = ''
 		return

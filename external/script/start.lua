@@ -12,6 +12,7 @@ start.challenger = 0
 --local variables
 local restoreCursor = false
 local selScreenEnd = false
+local selCharEnd = false
 local stageEnd = false
 local stageRandom = false
 local stageListNo = 0
@@ -508,7 +509,7 @@ end
 
 --sets stage
 function start.f_setStage(num, assigned)
-	if main.stageMenu then
+	if main.stageMenu and #main.t_selectableStages > 1 then
 		num = main.t_selectableStages[stageListNo]
 		if stageListNo == 0 then
 			num = main.t_selectableStages[math.random(1, #main.t_selectableStages)]
@@ -804,7 +805,7 @@ local function f_portraitsXCalc(side, t, subname, member)
 end
 
 --draw portraits
-function start.f_drawPortraits(t_portraits, side, t, subname, last, icon)
+function start.f_drawPortraits(t_portraits, side, t, subname, last, icon, offset)
 	if #t_portraits == 0 then
 		return
 	end
@@ -829,7 +830,7 @@ function start.f_drawPortraits(t_portraits, side, t, subname, last, icon)
 			f_slideDistCalc(v.slide_dist, t['p' .. side .. '_member1' .. subname .. '_slide_dist'], t['p' .. side .. '_member1' .. subname .. '_slide_speed'])
 			main.f_animPosDraw(
 				v.anim_data,
-				f_portraitsXCalc(side, t, subname, 1) + main.f_round(v.slide_dist[1]),
+				f_portraitsXCalc(side, t, subname, 1) + main.f_round(v.slide_dist[1]) + offset,
 				t['p' .. side .. subname .. '_pos'][2] + t['p' .. side .. subname .. '_offset'][2] + (main.f_tableExists(t['p' .. side .. '_member1' .. subname .. '_offset'])[2] or 0) + main.f_round(v.slide_dist[2]),
 				t['p' .. side .. subname .. '_facing'],
 				true
@@ -845,7 +846,7 @@ function start.f_drawPortraits(t_portraits, side, t, subname, last, icon)
 				f_slideDistCalc(v.slide_dist, t['p' .. side .. '_member' .. member .. subname .. '_slide_dist'], t['p' .. side .. '_member' .. member .. subname .. '_slide_speed'])
 					main.f_animPosDraw(
 					v.anim_data,
-					f_portraitsXCalc(side, t, subname, member) + main.f_round(v.slide_dist[1]),
+					f_portraitsXCalc(side, t, subname, member) + main.f_round(v.slide_dist[1]) + offset,
 					t['p' .. side .. subname .. '_pos'][2] + t['p' .. side .. subname .. '_offset'][2] + (main.f_tableExists(t['p' .. side .. '_member' .. member .. subname .. '_offset'])[2] or 0) + (member - 1) * t['p' .. side .. subname .. '_spacing'][2] + main.f_round(v.slide_dist[2]),
 					t['p' .. side .. subname .. '_facing'],
 					true
@@ -1162,9 +1163,10 @@ function start.f_randomChar(pn)
 	if #main.t_randomChars == 0 then
 		return nil
 	end
-	if config.TeamDuplicates then
-		return main.t_randomChars[math.random(1, #main.t_randomChars)]
-	end
+--	CFTE: disable team duplicates in random select
+--	if config.TeamDuplicates then
+--		return main.t_randomChars[math.random(1, #main.t_randomChars)]
+--	end
 	local t = {}
 	for k, v in ipairs(main.t_randomChars) do
 		if not t_reservedChars[pn][v] then
@@ -1465,6 +1467,8 @@ function start.f_selectMode()
 		--otherwise
 		else
 			if matchno() == -1 then --no more matches left
+				-- exit to main menu if no more matches left
+				main.exitSelect = true
 				--hiscore and stats data
 				local cleared, place = start.f_storeStats()
 				if main.hiscoreScreen and main.t_hiscoreData[gamemode()] ~= nil and motif.hiscore_info.enabled == 1 and place > 0 then
@@ -1579,6 +1583,7 @@ function start.f_selectReset(hardReset)
 		v.cell = -1
 	end
 	selScreenEnd = false
+	selCharEnd = false
 	stageEnd = false
 	t_reservedChars = {{}, {}}
 	start.winCnt = 0
@@ -1877,6 +1882,7 @@ function launchFight(data)
 			start.launchFightSav = main.f_tableCopy(t)
 			--start.p[2].t_selTemp = {} -- uncomment to disable enemy team showing up in select screen
 			selScreenEnd = false
+			selCharEnd = false
 			start.f_saveData()
 			return
 		else
@@ -1987,8 +1993,13 @@ function start.f_selectScreen()
 			end
 		end
 	end
+	selScreenTimeout = 0 -- FIXME: could we use counter instead?
 	while not selScreenEnd do
 		counter = counter + 1
+		selScreenTimeout = selScreenTimeout + 1
+		if main.f_input(main.t_players, {'pal', 's'}) then
+			selScreenTimeout = 0
+		end
 		--credits
 		if main.credits ~= -1 and getKey(motif.attract_mode.credits_key) then
 			sndPlay(motif.files.snd_data, motif.attract_mode.credits_snd[1], motif.attract_mode.credits_snd[2])
@@ -2001,12 +2012,23 @@ function start.f_selectScreen()
 		bgDraw(motif.selectbgdef.bg, false)
 		--draw title
 		main.txt_mainSelect:draw()
-		--draw portraits
+		-- CFTE: determine if portraits should be rendered
+		reserved = {}
 		for side = 1, 2 do
-			if #start.p[side].t_selTemp > 0 then
-				start.f_drawPortraits(start.p[side].t_selTemp, side, motif.select_info, '_face', true)
+			reserved[side] = false
+			for _, v in ipairs(start.p[side].t_selTemp) do
+				reserved[side] = reserved[side] or t_reservedChars[side][v.ref]
 			end
 		end
+		--draw portraits
+		for side = 1, 2 do
+			if #start.p[side].t_selTemp > 0 and not reserved[side] then
+				start.f_drawPortraits(start.p[side].t_selTemp, side, motif.select_info, '_face', true, nil, 0)
+			end
+		end
+		-- CFTE: this used to be done later in the draw loop
+		--draw layerno = 1 backgrounds
+		bgDraw(motif.selectbgdef.bg, true)
 		--draw cell art
 		for row = 1, motif.select_info.rows do
 			for col = 1, motif.select_info.columns do
@@ -2044,7 +2066,7 @@ function start.f_selectScreen()
 		--draw done cursors
 		for side = 1, 2 do
 			for _, v in pairs(start.p[side].t_selected) do
-				if v.cursor ~= nil then
+				if v.cursor ~= nil and not selCharEnd then
 					--get cell coordinates
 					local x = v.cursor[1]
 					local y = v.cursor[2]
@@ -2112,13 +2134,15 @@ function start.f_selectScreen()
 			end
 		end
 		--exit select screen
-		if not escFlag and (esc() or main.f_input(main.t_players, {'m'})) then
+		if not escFlag and (esc() or main.f_input(main.t_players, {'m'})
+			or (selScreenTimeout > config.Framerate * 60 and (FLAVOUR == 'borne' or FLAVOUR == 'tournoi'))) -- exit after 60 seconds
+			then
 			main.f_fadeReset('fadeout', motif.select_info)
 			escFlag = true
 		end
 		--draw names
 		for side = 1, 2 do
-			if #start.p[side].t_selTemp > 0 then
+			if #start.p[side].t_selTemp > 0 and not reserved[side] and not selCharEnd then
 				for i = 1, #start.p[side].t_selTemp do
 					if i <= motif.select_info['p' .. side .. '_name_num'] or main.coop then
 						local name = ''
@@ -2148,14 +2172,28 @@ function start.f_selectScreen()
 		end
 		--team and character selection complete
 		if start.p[1].selEnd and start.p[2].selEnd and start.p[1].teamEnd and start.p[2].teamEnd then
+			-- CFTE: handle new “selCharEnd” variable
+			if not selCharEnd then
+				main.txt_mainSelect:update({text = 'select stage'})
+				if motif.music.stage_bgm ~= '' then
+					main.f_playBGM(false, motif.music.stage_bgm, motif.music.stage_bgm_loop, motif.music.stage_bgm_volume, motif.music.stage_bgm_loopstart, motif.music.stage_bgm_loopend)
+				end
+				if #main.t_selectableStages > 1 then
+					-- uncomment to use a specific stage by default
+					--stageListNo = 1
+				end
+				selCharEnd = true
+			end
+		end
+		if selCharEnd then
 			restoreCursor = true
-			if main.stageMenu and not stageEnd then --Stage select
+			if main.stageMenu and #main.t_selectableStages > 1 and not stageEnd then --Stage select
 				start.f_stageMenu()
 			elseif start.p[1].screenDelay <= 0 and start.p[2].screenDelay <= 0 and main.fadeType == 'fadein' then
 				main.f_fadeReset('fadeout', motif.select_info)
 			end
 			--draw stage portrait
-			if main.stageMenu then
+			if main.stageMenu and #main.t_selectableStages > 1 then
 				--draw stage portrait background
 				main.f_animPosDraw(motif.select_info.stage_portrait_bg_data)
 				--draw stage portrait (random)
@@ -2230,8 +2268,6 @@ function start.f_selectScreen()
 		end
 		-- hook
 		hook.run("start.f_selectScreen")
-		--draw layerno = 1 backgrounds
-		bgDraw(motif.selectbgdef.bg, true)
 		--draw fadein / fadeout
 		main.f_fadeAnim(motif.select_info)
 		--frame transition
@@ -2618,7 +2654,15 @@ function start.f_selectMenu(side, cmd, player, member, selectState)
 						end
 						sndPlay(motif.files.snd_data, start.f_getCursorData(player, '_random_move_snd')[1], start.f_getCursorData(player, '_random_move_snd')[2])
 						start.c[player].randCnt = motif.select_info.cell_random_switchtime
-						start.c[player].selRef = start.f_randomChar(side)
+						-- CFTE: re-roll character to avoid weird flickering
+						local newRef = start.f_randomChar(side)
+						for i = 1,3 do
+							if newRef == start.c[player].selRef or newRef == start.c[player].prevRef then
+								newRef = start.f_randomChar(side)
+							end
+						end
+						start.c[player].prevRef = start.c[player].selRef
+						start.c[player].selRef = newRef
 						if start.c[player].randRef ~= start.c[player].selRef or start.p[side].t_selTemp[member].anim_data == nil then
 							updateAnim = true
 							start.c[player].randRef = start.c[player].selRef
@@ -2649,6 +2693,20 @@ function start.f_selectMenu(side, cmd, player, member, selectState)
 					start.p[side].t_selTemp[member].ref = start.c[player].selRef
 					main.f_cmdBufReset(cmd)
 					selectState = 1
+					-- CFTE: disallow same character for the other side
+					t_reservedChars[3 - side][start.c[player].selRef] = true
+					-- CFTE: move random selection to actual character cell
+					if start.t_grid[start.c[player].selY + 1][start.c[player].selX + 1].char == 'randomselect' then
+						for row = 1, motif.select_info.rows do
+							for col = 1, motif.select_info.columns do
+								local t = start.t_grid[row][col]
+								if t.char_ref == start.c[player].selRef then
+									start.c[player].selX = col - 1
+									start.c[player].selY = row - 1
+								end
+							end
+						end
+					end
 				end
 			end
 		--selection menu
@@ -2724,6 +2782,7 @@ function start.f_stageMenu()
 		sndPlay(motif.files.snd_data, motif.select_info.stage_move_snd[1], motif.select_info.stage_move_snd[2])
 		stageListNo = stageListNo + 1
 		if stageListNo > #main.t_selectableStages then stageListNo = 0 end
+--[[
 	elseif main.f_input(main.t_players, {'$U'}) then
 		sndPlay(motif.files.snd_data, motif.select_info.stage_move_snd[1], motif.select_info.stage_move_snd[2])
 		for i = 1, 10 do
@@ -2736,6 +2795,7 @@ function start.f_stageMenu()
 			stageListNo = stageListNo + 1
 			if stageListNo > #main.t_selectableStages then stageListNo = 0 end
 		end
+]]
 	end
 	if n ~= stageListNo and stageListNo > 0 then
 		animReset(main.t_selStages[main.t_selectableStages[stageListNo]].anim_data)
@@ -2875,9 +2935,11 @@ function start.f_selectVersus(active, t_orderSelect)
 		clearColor(motif.versusbgdef.bgclearcolor[1], motif.versusbgdef.bgclearcolor[2], motif.versusbgdef.bgclearcolor[3])
 		--draw layerno = 0 backgrounds
 		bgDraw(motif.versusbgdef.bg, false)
+		-- CFTE: animate portraits and names
+		text_delta = (counter > 50 and 0 or counter - 50) * 40
 		--draw portraits and order icons
 		for side = 1, 2 do
-			start.f_drawPortraits(main.f_remapTable(start.p[side].t_selTemp, start.t_orderRemap[side]), side, motif.vs_screen, '', false, t_icon[side])
+			start.f_drawPortraits(main.f_remapTable(start.p[side].t_selTemp, start.t_orderRemap[side]), side, motif.vs_screen, '', false, t_icon[side], ({text_delta, -text_delta})[side])
 		end
 		--draw order values
 		for side = 1, 2 do
@@ -2908,7 +2970,7 @@ function start.f_selectVersus(active, t_orderSelect)
 						bank =   motif.vs_screen['p' .. side .. '_name_font'][2],
 						align =  motif.vs_screen['p' .. side .. '_name_font'][3],
 						text =   start.f_getName(v.ref, side),
-						x =      motif.vs_screen['p' .. side .. '_name_pos'][1] + motif.vs_screen['p' .. side .. '_name_offset'][1] + (k - 1) * motif.vs_screen['p' .. side .. '_name_spacing'][1],
+						x =      motif.vs_screen['p' .. side .. '_name_pos'][1] + motif.vs_screen['p' .. side .. '_name_offset'][1] + (k - 1) * motif.vs_screen['p' .. side .. '_name_spacing'][1] + ({text_delta, -text_delta})[side],
 						y =      motif.vs_screen['p' .. side .. '_name_pos'][2] + motif.vs_screen['p' .. side .. '_name_offset'][2] + (k - 1) * motif.vs_screen['p' .. side .. '_name_spacing'][2],
 						scaleX = motif.vs_screen['p' .. side .. '_name_scale'][1],
 						scaleY = motif.vs_screen['p' .. side .. '_name_scale'][2],
@@ -2937,8 +2999,8 @@ function start.f_selectVersus(active, t_orderSelect)
 		for side = 1, 2 do
 			if main.fadeType == 'fadein' and (
 				counter >= motif.vs_screen.time
-				or (not main.cpuSide[side] and main.f_input({side}, main.f_extractKeys(motif.vs_screen['p' .. side .. '_skip_key'])))
-				or (done and main.f_input({side}, main.f_extractKeys(motif.vs_screen['p' .. side .. '_accept_key'])))
+				--or (not main.cpuSide[side] and main.f_input({side}, main.f_extractKeys(motif.vs_screen['p' .. side .. '_skip_key'])))
+				--or (done and main.f_input({side}, main.f_extractKeys(motif.vs_screen['p' .. side .. '_accept_key'])))
 				) then
 				main.f_fadeReset('fadeout', motif.vs_screen)
 				break
@@ -2946,7 +3008,7 @@ function start.f_selectVersus(active, t_orderSelect)
 		end
 		main.f_fadeAnim(motif.vs_screen)
 		--frame transition
-		if not escFlag and (esc() or main.f_input(main.t_players, {'m'})) then
+		if not escFlag and (esc() or main.f_input(main.t_players, {'DISABLED_m'})) then
 			esc(false)
 			main.f_fadeReset('fadeout', motif.vs_screen)
 			escFlag = true
@@ -3161,7 +3223,7 @@ function start.f_result()
 	end
 	main.f_fadeAnim(t)
 	--frame transition
-	if not start.t_result.escFlag and (esc() or main.f_input(main.t_players, {'m'})) then
+	if not start.t_result.escFlag and (esc() or main.f_input(main.t_players, {'DISABLED_m'})) then
 		esc(false)
 		main.f_fadeReset('fadeout', t)
 		start.t_result.escFlag = true
@@ -3323,7 +3385,8 @@ function start.f_victoryInit()
 	if start.t_victory.winquote == '' then
 		start.t_victory.winquote = motif.victory_screen.winquote_text
 	end
-	t_txt_winquoteName[1]:update({text = start.f_getName(start.t_victory.winnerRef)})
+	-- CFTE: display “WINS” after winner name
+	t_txt_winquoteName[1]:update({text = start.f_getName(start.t_victory.winnerRef) .. ' wins'})
 	t_txt_winquoteName[2]:update({text = start.f_getName(start.t_victory.loserRef)})
 	start.t_victory.active = true
 	return true
@@ -3340,7 +3403,7 @@ function start.f_victory()
 	bgDraw(motif.victorybgdef.bg, false)
 	--draw portraits (starting from losers)
 	for side = 2, 1, -1 do
-		start.f_drawPortraits(start.t_victory['team' .. side], side, motif.victory_screen, '', false)
+		start.f_drawPortraits(start.t_victory['team' .. side], side, motif.victory_screen, '', false, nil, 0)
 	end
 	--draw winner name
 	t_txt_winquoteName[1]:draw()
@@ -3375,12 +3438,16 @@ function start.f_victory()
 	--draw layerno = 1 backgrounds
 	bgDraw(motif.victorybgdef.bg, true)
 	--draw fadein / fadeout
-	if main.fadeType == 'fadein' and ((start.t_victory.textend and start.t_victory.counter - start.t_victory.textcnt >= motif.victory_screen.time) or main.f_input(main.t_players, {'pal', 's'})) then
+	if main.fadeType == 'fadein' and ((start.t_victory.textend and start.t_victory.counter - start.t_victory.textcnt >= motif.victory_screen.time)
+		-- or main.f_input(main.t_players, {'pal', 's'})
+		) then
 		main.f_fadeReset('fadeout', motif.victory_screen)
 	end
 	main.f_fadeAnim(motif.victory_screen)
 	--frame transition
-	if not start.t_victory.escFlag and (esc() or main.f_input(main.t_players, {'m'})) then
+	if not start.t_victory.escFlag and (esc()
+		-- or main.f_input(main.t_players, {'m'})
+		) then
 		esc(false)
 		main.f_fadeReset('fadeout', motif.victory_screen)
 		start.t_victory.escFlag = true
@@ -3657,7 +3724,7 @@ function start.f_continue()
 	end
 	main.f_fadeAnim(motif.continue_screen)
 	--frame transition
-	if not start.t_continue.escFlag and (esc() or main.f_input(main.t_players, {'m'})) then
+	if not start.t_continue.escFlag and (esc() or main.f_input(main.t_players, {'DISABLED_m'})) then
 		esc(false)
 		main.f_fadeReset('fadeout', motif.continue_screen)
 		start.t_continue.escFlag = true
