@@ -105,6 +105,7 @@ const (
 	BG_Normal BgType = iota
 	BG_Anim
 	BG_Parallax
+	BG_Video
 	BG_Dummy
 )
 
@@ -113,6 +114,7 @@ type backGround struct {
 	palfx              *PalFX
 	anim               Animation
 	bga                bgAction
+	video              bgVideo
 	id                 int32
 	start              [2]float32
 	xofs               float32
@@ -165,6 +167,8 @@ func readBackGround(is IniSection, link *backGround,
 		bg._type = BG_Anim
 	case 'P', 'p':
 		bg._type = BG_Parallax
+	case 'V', 'v':
+		bg._type = BG_Video
 	case 'D', 'd':
 		bg._type = BG_Dummy
 	default:
@@ -177,7 +181,11 @@ func readBackGround(is IniSection, link *backGround,
 			bg._type = BG_Dummy
 		}
 	}
-	if bg._type != BG_Dummy {
+	if bg._type == BG_Video {
+		if len(is["path"]) != 0 {
+			bg.video.Open(is["path"])
+		}
+	} else if bg._type != BG_Dummy {
 		var hasAnim bool
 		if (bg._type != BG_Normal || len(is["spriteno"]) == 0) &&
 			is.ReadI32("actionno", &bg.actionno) {
@@ -431,9 +439,20 @@ func (bg backGround) draw(pos [2]float32, scl, bgscl, lclscl float32,
 	rect[2] = int32(math.Floor(float64(startrect0 + (float32(rect[2]) * sys.widthScale * wscl[0]) - float32(rect[0]))))
 	rect[3] = int32(math.Floor(float64(startrect1 + (float32(rect[3]) * sys.heightScale * wscl[1]) - float32(rect[1]))))
 	if rect[0] < sys.scrrect[2] && rect[1] < sys.scrrect[3] && rect[0]+rect[2] > 0 && rect[1]+rect[3] > 0 {
-		bg.anim.Draw(&rect, x, y, sclx, scly, bg.xscale[0]*bgscl*(bg.scalestart[0]+xs)*xs3, xbs*bgscl*(bg.scalestart[0]+xs)*xs3, ys*ys3,
-			xras*x/(AbsF(ys*ys3)*lscl[1]*float32(bg.anim.spr.Size[1])*bg.scalestart[1])*sclx_recip*bg.scalestart[1],
-			Rotation{}, float32(sys.gameWidth)/2, bg.palfx, true, 1, false, 1, 0, 0)
+		if bg._type == BG_Video {
+			bg.video.Tick()
+			if bg.video.texture != nil {
+				rp := RenderParams{
+					bg.video.texture, nil, [2]uint16{uint16(bg.video.texture.width), uint16(bg.video.texture.height)},
+					x, y, notiling, sclx, scly, 1, 1, 0, Rotation{}, 0, 255, -1, nil, &sys.scrrect, 0, 0, 0, 0, 0, 0,
+				}
+				RenderSprite(rp)
+			}
+		} else {
+			bg.anim.Draw(&rect, x, y, sclx, scly, bg.xscale[0]*bgscl*(bg.scalestart[0]+xs)*xs3, xbs*bgscl*(bg.scalestart[0]+xs)*xs3, ys*ys3,
+				xras*x/(AbsF(ys*ys3)*lscl[1]*float32(bg.anim.spr.Size[1])*bg.scalestart[1])*sclx_recip*bg.scalestart[1],
+				Rotation{}, float32(sys.gameWidth)/2, bg.palfx, true, 1, false, 1, 0, 0)
+		}
 	}
 }
 
@@ -1263,7 +1282,7 @@ func (s *Stage) draw(top bool, x, y, scl float32) {
 		160*float32(s.stageCamera.localcoord[1])) /
 		float32(s.stageCamera.localcoord[0])) / 480
 	for _, b := range s.bg {
-		if b.visible && b.toplayer == top && b.anim.spr != nil {
+		if b.visible && b.toplayer == top && (b.anim.spr != nil || b._type == BG_Video) {
 			b.draw(pos, scl, bgscl, s.localscl, s.scale,
 				yofs+yofs3*Pow(Pow(scl, b.zoomdelta[1]), yofs4)-s.stageCamera.drawOffsetY*(1-b.delta[1]*bgscl), true)
 		}

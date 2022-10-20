@@ -11,6 +11,7 @@ require (
 	github.com/ikemen-engine/glfont v0.0.0-20220323132206-8bdc165eee08
 	github.com/sqweek/dialog v0.0.0-20220504154117-be45b268883a
 	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64
+	github.com/zergon321/reisen v0.1.5
 	golang.org/x/mobile v0.0.0-20211207041440-4e6c2922fdee
 )
 
@@ -26,7 +27,7 @@ require (
 	github.com/jfreymuth/vorbis v1.0.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6 // indirect
-	golang.org/x/image v0.0.0-20190802002840-cff245a6509b // indirect
+	golang.org/x/image v0.0.0-20200801110659-972c09e46d76 // indirect
 	golang.org/x/sys v0.0.0-20211019181941-9d821ace8654 // indirect
 	honnef.co/go/js/dom v0.0.0-20210725211120-f030747120f2 // indirect
 )
