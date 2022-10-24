@@ -99,8 +99,17 @@ func (bga *bgAction) action() {
 	}
 }
 
+type BgType int32
+
+const (
+	BG_Normal BgType = iota
+	BG_Anim
+	BG_Parallax
+	BG_Dummy
+)
+
 type backGround struct {
-	typ                int
+	_type              BgType
 	palfx              *PalFX
 	anim               Animation
 	bga                bgAction
@@ -151,13 +160,13 @@ func readBackGround(is IniSection, link *backGround,
 	}
 	switch typ[0] {
 	case 'N', 'n':
-		bg.typ = 0 // normal
+		bg._type = BG_Normal
 	case 'A', 'a':
-		bg.typ = 1 // anim
+		bg._type = BG_Anim
 	case 'P', 'p':
-		bg.typ = 2 // parallax
+		bg._type = BG_Parallax
 	case 'D', 'd':
-		bg.typ = 3 // dummy
+		bg._type = BG_Dummy
 	default:
 		return bg
 	}
@@ -165,12 +174,12 @@ func readBackGround(is IniSection, link *backGround,
 	if is.ReadI32("layerno", &tmp) {
 		bg.toplayer = tmp == 1
 		if tmp < 0 || tmp > 1 {
-			bg.typ = 3
+			bg._type = BG_Dummy
 		}
 	}
-	if bg.typ != 3 {
+	if bg._type != BG_Dummy {
 		var hasAnim bool
-		if (bg.typ != 0 || len(is["spriteno"]) == 0) &&
+		if (bg._type != BG_Normal || len(is["spriteno"]) == 0) &&
 			is.ReadI32("actionno", &bg.actionno) {
 			if a := at.get(bg.actionno); a != nil {
 				bg.anim = *a
@@ -178,8 +187,8 @@ func readBackGround(is IniSection, link *backGround,
 			}
 		}
 		if hasAnim {
-			if bg.typ == 0 {
-				bg.typ = 1
+			if bg._type == BG_Normal {
+				bg._type = BG_Anim
 			}
 		} else {
 			var g, n int32
@@ -257,14 +266,14 @@ func readBackGround(is IniSection, link *backGround,
 		bg.anim.dstAlpha = 0
 	}
 	if is.readI32ForStage("tile", &bg.anim.tile.x, &bg.anim.tile.y) {
-		if bg.typ == 2 {
+		if bg._type == BG_Parallax {
 			bg.anim.tile.y = 0
 		}
 		if bg.anim.tile.x < 0 {
 			bg.anim.tile.x = math.MaxInt32
 		}
 	}
-	if bg.typ == 2 {
+	if bg._type == BG_Parallax {
 		if !is.readI32ForStage("width", &bg.width[0], &bg.width[1]) {
 			is.readF32ForStage("xscale", &bg.rasterx[0], &bg.rasterx[1])
 		}
@@ -347,7 +356,7 @@ func (bg *backGround) reset() {
 }
 func (bg backGround) draw(pos [2]float32, scl, bgscl, lclscl float32,
 	stgscl [2]float32, shakeY float32, isStage bool) {
-	if bg.typ == 2 && (bg.width[0] != 0 || bg.width[1] != 0) && bg.anim.spr != nil {
+	if bg._type == BG_Parallax && (bg.width[0] != 0 || bg.width[1] != 0) && bg.anim.spr != nil {
 		bg.xscale[0] = float32(bg.width[0]) / float32(bg.anim.spr.Size[0])
 		bg.xscale[1] = float32(bg.width[1]) / float32(bg.anim.spr.Size[0])
 		bg.xofs = -float32(bg.width[0])/2 + float32(bg.anim.spr.Offset[0])*bg.xscale[0]
