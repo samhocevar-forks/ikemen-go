@@ -59,7 +59,7 @@ func (bgv *bgVideo) Open(filename string) (error) {
 		return err
 	}
 
-	speaker.Play(streamSamples(bgv.sampleBuffer))
+	//speaker.Play(streamSamples(bgv.sampleBuffer))
 
 	go func() {
 		for {
@@ -147,15 +147,20 @@ println("OK!a")
 // See https://github.com/faiface/beep/wiki/Making-own-streamers
 // for reference.
 func streamSamples(sampleBuffer <-chan [2]float64) beep.Streamer {
+total := 0
 	return beep.StreamerFunc(func(samples [][2]float64) (n int, ok bool) {
+total += len(samples)
+//println("Beep requesting ", len(samples), " samples, total is ", total)
 		for i := 0; i < len(samples); i++ {
-			sample, ok := <-sampleBuffer
-
-			if !ok {
-				return i, false
+			select {
+			case sample, ok := <-sampleBuffer:
+				if !ok {
+					return i, false
+				}
+				samples[i] = sample
+			default:
+				samples[i] = [2]float64{0, 0}
 			}
-
-			samples[i] = sample
 		}
 
 		return len(samples), true
@@ -163,6 +168,7 @@ func streamSamples(sampleBuffer <-chan [2]float64) beep.Streamer {
 }
 
 func (bgv *bgVideo) Tick() error {
+println("Tick video... ", bgv, bgv.started)
 	// Check for incoming errors.
 	select {
 	case err, ok := <-bgv.errs:
@@ -175,7 +181,7 @@ func (bgv *bgVideo) Tick() error {
 
 	if !bgv.started {
 		// Start playing audio samples.
-		//speaker.Play(streamSamples(bgv.sampleBuffer))
+		speaker.Play(streamSamples(bgv.sampleBuffer))
 		bgv.started = true
 	}
 
@@ -190,5 +196,6 @@ func (bgv *bgVideo) Tick() error {
 		bgv.texture.SetData(frame.Pix)
 	}
 
+println("Ticked video... ", bgv, bgv.started)
 	return nil
 }

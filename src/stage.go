@@ -114,7 +114,7 @@ type backGround struct {
 	palfx              *PalFX
 	anim               Animation
 	bga                bgAction
-	video              bgVideo
+	video              *bgVideo
 	id                 int32
 	start              [2]float32
 	xofs               float32
@@ -362,7 +362,7 @@ func (bg *backGround) reset() {
 	bg.bga.sinlooptime = bg.startsinlt
 	bg.palfx.time = -1
 }
-func (bg backGround) draw(pos [2]float32, scl, bgscl, lclscl float32,
+func (bg *backGround) draw(pos [2]float32, scl, bgscl, lclscl float32,
 	stgscl [2]float32, shakeY float32, isStage bool) {
 	if bg._type == BG_Parallax && (bg.width[0] != 0 || bg.width[1] != 0) && bg.anim.spr != nil {
 		bg.xscale[0] = float32(bg.width[0]) / float32(bg.anim.spr.Size[0])
@@ -440,6 +440,7 @@ func (bg backGround) draw(pos [2]float32, scl, bgscl, lclscl float32,
 	rect[3] = int32(math.Floor(float64(startrect1 + (float32(rect[3]) * sys.heightScale * wscl[1]) - float32(rect[1]))))
 	if rect[0] < sys.scrrect[2] && rect[1] < sys.scrrect[3] && rect[0]+rect[2] > 0 && rect[1]+rect[3] > 0 {
 		if bg._type == BG_Video {
+println("Tick video")
 			bg.video.Tick()
 			if bg.video.texture != nil {
 				rp := RenderParams{
