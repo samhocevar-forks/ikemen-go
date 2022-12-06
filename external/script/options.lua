@@ -60,6 +60,46 @@ local function f_externalShaderName()
 	return motif.option_info.menu_valuename_disabled
 end
 
+local function f_numericConfVar(name, min, max, step, onChanged, onDisplay)
+	return function(t, item, cursorPosY, moveTxt)
+		local val = config[name]
+		local modified = false
+		if main.f_input(main.t_players, {'$F'}) and val <= max - step then
+			val = val + step
+			modified = true
+		elseif main.f_input(main.t_players, {'$B'}) and val >= min + step then
+			val = val - step
+			modified = true
+		end
+		if modified then
+			options.modified = true
+			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
+			if onChanged then onChanged(val) end
+			config[name] = val
+			if onDisplay then val = onDisplay(val) end
+			t.items[item].vardisplay = val
+		end
+		return true
+	end
+end
+
+local function f_boolConfVar(name, onChanged, onDisplay)
+	return function(t, item, cursorPosY, moveTxt)
+		local val = config[name]
+		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
+			val = not val
+			options.modified = true
+			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
+			if onChanged then onChanged(val) end
+			config[name] = val
+			if onDisplay then val = onDisplay(val) end
+			t.items[item].vardisplay = val
+		end
+		return true
+	end
+end
+
+
 -- Associative elements table storing functions controlling behaviour of each
 -- option screen item. Can be appended via external module.
 options.t_itemname = {
@@ -243,86 +283,15 @@ options.t_itemname = {
 		return true
 	end,
 	--Difficulty Level
-	['difficulty'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F'}) and config.Difficulty < 8 then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.Difficulty = config.Difficulty + 1
-			t.items[item].vardisplay = config.Difficulty
-			options.modified = true
-		elseif main.f_input(main.t_players, {'$B'}) and config.Difficulty > 1 then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.Difficulty = config.Difficulty - 1
-			t.items[item].vardisplay = config.Difficulty
-			options.modified = true
-		end
-		return true
-	end,
+	['roundtime'] = f_numericConfVar('Difficulty', 1, 8, 1),
 	--Time Limit
-	['roundtime'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F'}) and config.RoundTime < 1000 then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.RoundTime = config.RoundTime + 1
-			t.items[item].vardisplay = config.RoundTime
-			options.modified = true
-		elseif main.f_input(main.t_players, {'$B'}) and config.RoundTime > -1 then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.RoundTime = config.RoundTime - 1
-			t.items[item].vardisplay = options.f_definedDisplay(config.RoundTime, {[-1] = motif.option_info.menu_valuename_none}, config.RoundTime)
-			options.modified = true
-		end
-		return true
-	end,
+	['roundtime'] = f_numericConfVar('RoundTime', -1, 1000, 1, nil, function(n) return options.f_definedDisplay(n, {[-1] = motif.option_info.menu_valuename_none}, n) end),
 	--Life
-	['lifemul'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F'}) and config.LifeMul < 300 then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.LifeMul = config.LifeMul + 10
-			setLifeMul(config.LifeMul / 100)
-			t.items[item].vardisplay = config.LifeMul .. '%'
-			options.modified = true
-		elseif main.f_input(main.t_players, {'$B'}) and config.LifeMul > 10 then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.LifeMul = config.LifeMul - 10
-			setLifeMul(config.LifeMul / 100)
-			t.items[item].vardisplay = config.LifeMul .. '%'
-			options.modified = true
-		end
-		return true
-	end,
+	['lifemul'] = f_numericConfVar('LifeMul', 1, 300, 10, function(n) setLifeMul(n / 100) end, function(n) return n .. '%' end),
 	--Single VS Team Life
-	['singlevsteamlife'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F'}) and config.Team1VS2Life < 300 then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.Team1VS2Life = config.Team1VS2Life + 10
-			setTeam1VS2Life(config.Team1VS2Life / 100)
-			t.items[item].vardisplay = config.Team1VS2Life .. '%'
-			options.modified = true
-		elseif main.f_input(main.t_players, {'$B'}) and config.Team1VS2Life > 10 then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.Team1VS2Life = config.Team1VS2Life - 10
-			setTeam1VS2Life(config.Team1VS2Life / 100)
-			t.items[item].vardisplay = config.Team1VS2Life .. '%'
-			options.modified = true
-		end
-		return true
-	end,
+	['singlevsteamlife'] = f_numericConfVar('Team1VS2Life', 1, 300, 10, function(n) setTeam1VS2Life(n / 100) end, function(n) return n .. '%' end),
 	-- Game FPS (Game Speed)
-	['gamespeed'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F'}) and config.GameFramerate < 600 then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.GameFramerate = config.GameFramerate + 1
-			setGameSpeed(config.GameFramerate)
-			t.items[item].vardisplay = config.GameFramerate
-			options.modified = true
-		elseif main.f_input(main.t_players, {'$B'}) and config.GameFramerate > 1 then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.GameFramerate = config.GameFramerate - 1
-			setGameSpeed(config.GameFramerate)
-			t.items[item].vardisplay = config.GameFramerate
-			options.modified = true
-		end
-		return true
-	end,
+	['gamespeed'] = f_numericConfVar('GameFramerate', 1, 600, 1, setGameSpeed, nil),
 	--Rounds to Win (Single)
 	['roundsnumsingle'] = function(t, item, cursorPosY, moveTxt)
 		if main.f_input(main.t_players, {'$F'}) and main.roundsNumSingle[1] < 10 then
@@ -358,178 +327,29 @@ options.t_itemname = {
 		return true
 	end,
 	--Credits
-	['credits'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F'}) and config.Credits < 99 then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.Credits = config.Credits + 1
-			t.items[item].vardisplay = config.Credits
-			options.modified = true
-		elseif main.f_input(main.t_players, {'$B'}) and config.Credits > 0 then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.Credits = config.Credits - 1
-			t.items[item].vardisplay = options.f_definedDisplay(config.Credits, {[0] = motif.option_info.menu_valuename_disabled}, config.Credits)
-			options.modified = true
-		end
-		return true
-	end,
+	['credits'] = f_numericConfVar('Credits', 0, 99, 1),
 	--Arcade Palette
-	['aipalette'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			if config.AIRandomColor then
-				config.AIRandomColor = false
-			else
-				config.AIRandomColor = true
-			end
-			t.items[item].vardisplay = options.f_boolDisplay(config.AIRandomColor, motif.option_info.menu_valuename_random, motif.option_info.menu_valuename_default)
-			options.modified = true
-		end
-		return true
-	end,
+	['aipalette'] = f_boolConfVar('AIRandomColor', nil, function(n) return options.f_boolDisplay(n, motif.option_info.menu_valuename_random, motif.option_info.menu_valuename_default) end),
 	--Survival Palette
-	['aisurvivalpalette'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			if config.AISurvivalColor then
-				config.AISurvivalColor = false
-			else
-				config.AISurvivalColor = true
-			end
-			t.items[item].vardisplay = options.f_boolDisplay(config.AISurvivalColor, motif.option_info.menu_valuename_random, motif.option_info.menu_valuename_default)
-			options.modified = true
-		end
-		return true
-	end,
+	['aisurvivalpalette'] = f_boolConfVar('AISurvivalColor', nil, function(n) return options.f_boolDisplay(n, motif.option_info.menu_valuename_random, motif.option_info.menu_valuename_default) end),
 	--AI Ramping
-	['airamping'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			if config.AIRamping then
-				config.AIRamping = false
-			else
-				config.AIRamping = true
-			end
-			t.items[item].vardisplay = options.f_boolDisplay(config.AIRamping)
-			options.modified = true
-		end
-		return true
-	end,
+	['airamping'] = f_boolConfVar('AIRamping', nil, options.f_boolDisplay),
 	--Quick Continue
-	['quickcontinue'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			if config.QuickContinue then
-				config.QuickContinue = false
-			else
-				config.QuickContinue = true
-				end
-			t.items[item].vardisplay = options.f_boolDisplay(config.QuickContinue)
-			options.modified = true
-		end
-		return true
-	end,
+	['quickcontinue'] = f_boolConfVar('QuickContinue', nil, options.f_boolDisplay),
 	--Auto-Guard
-	['autoguard'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			if config.AutoGuard then
-				config.AutoGuard = false
-			else
-				config.AutoGuard = true
-			end
-			t.items[item].vardisplay = options.f_boolDisplay(config.AutoGuard)
-			options.modified = true
-		end
-		return true
-	end,
+	['autoguard'] = f_boolConfVar('AutoGuard', nil, options.f_boolDisplay),
 	--Dizzy
-	['stunbar'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			if config.BarStun then
-				config.BarStun = false
-			else
-				config.BarStun = true
-			end
-			t.items[item].vardisplay = options.f_boolDisplay(config.BarStun)
-			options.modified = true
-		end
-		return true
-	end,
+	['stunbar'] = f_boolConfVar('BarStun', nil, options.f_boolDisplay),
 	--Guard Break
-	['guardbar'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			if config.BarGuard then
-				config.BarGuard = false
-			else
-				config.BarGuard = true
-			end
-			t.items[item].vardisplay = options.f_boolDisplay(config.BarGuard)
-			options.modified = true
-		end
-		return true
-	end,
+	['guardbar'] = f_boolConfVar('BarGuard', nil, options.f_boolDisplay),
 	--Red Life
-	['redlifebar'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			if config.BarRedLife then
-				config.BarRedLife = false
-			else
-				config.BarRedLife = true
-			end
-			t.items[item].vardisplay = options.f_boolDisplay(config.BarRedLife)
-			options.modified = true
-		end
-		return true
-	end,
+	['redlifebar'] = f_boolConfVar('BarRedLife', nil, options.f_boolDisplay),
 	--Team Duplicates
-	['teamduplicates'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			if config.TeamDuplicates then
-				config.TeamDuplicates = false
-			else
-				config.TeamDuplicates = true
-				end
-			t.items[item].vardisplay = options.f_boolDisplay(config.TeamDuplicates)
-			options.modified = true
-		end
-		return true
-	end,
+	['teamduplicates'] = f_boolConfVar('TeamDuplicates', nil, options.f_boolDisplay),
 	--Team Life Share
-	['teamlifeshare'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			if config.TeamLifeShare then
-				config.TeamLifeShare = false
-			else
-				config.TeamLifeShare = true
-			end
-			setLifeShare(1, config.TeamLifeShare)
-			setLifeShare(2, config.TeamLifeShare)
-			t.items[item].vardisplay = options.f_boolDisplay(config.TeamLifeShare)
-			options.modified = true
-		end
-		return true
-	end,
+	['teamlifeshare'] = f_boolConfVar('TeamLifeShare', function(n) setLifeShare(1, n) setLifeShare(2, n) end, options.f_boolDisplay),
 	--Team Power Share
-	['teampowershare'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			if config.TeamPowerShare then
-				config.TeamPowerShare = false
-			else
-				config.TeamPowerShare = true
-			end
-			setPowerShare(1, config.TeamPowerShare)
-			setPowerShare(2, config.TeamPowerShare)
-			t.items[item].vardisplay = options.f_boolDisplay(config.TeamPowerShare)
-			options.modified = true
-		end
-		return true
-	end,
+	['teampowershare'] = f_boolConfVar('TeamPowerShare', function(n) setPowerShare(1, n) setPowerShare(2, n) end, options.f_boolDisplay),
 	--Rounds to Win (Tag)
 	['roundsnumtag'] = function(t, item, cursorPosY, moveTxt)
 		if main.f_input(main.t_players, {'$F'}) and main.roundsNumTag[1] < 10 then
@@ -548,20 +368,7 @@ options.t_itemname = {
 		return true
 	end,
 	--Partner KOed Lose
-	['losekotag'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			if config.LoseTag then
-				config.LoseTag = false
-			else
-				config.LoseTag = true
-			end
-			setLoseTag(config.LoseTag)
-			t.items[item].vardisplay = options.f_boolDisplay(config.LoseTag)
-			options.modified = true
-		end
-		return true
-	end,
+	['losekotag'] = f_boolConfVar('LoseTag', setLoseTag, options.f_boolDisplay),
 	--Min Tag Chars
 	['mintag'] = function(t, item, cursorPosY, moveTxt)
 		if main.f_input(main.t_players, {'$F'}) and config.NumTag[1] < config.NumTag[2] then
@@ -610,20 +417,7 @@ options.t_itemname = {
 		return true
 	end,
 	--Simul Player KOed Lose
-	['losekosimul'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			if config.LoseSimul then
-				config.LoseSimul = false
-			else
-				config.LoseSimul = true
-			end
-			setLoseSimul(config.LoseSimul)
-			t.items[item].vardisplay = options.f_boolDisplay(config.LoseSimul)
-			options.modified = true
-		end
-		return true
-	end,
+	['losekosimul'] = f_boolConfVar('LoseSimul', setLoseSimul, options.f_boolDisplay),
 	--Min Simul Chars
 	['minsimul'] = function(t, item, cursorPosY, moveTxt)
 		if main.f_input(main.t_players, {'$F'}) and config.NumSimul[1] < config.NumSimul[2] then
@@ -809,20 +603,7 @@ options.t_itemname = {
 		return true
 	end,
 	--Fullscreen
-	['fullscreen'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			if config.Fullscreen then
-				config.Fullscreen = false
-			else
-				config.Fullscreen = true
-			end
-			toggleFullscreen(config.Fullscreen)
-			t.items[item].vardisplay = options.f_boolDisplay(config.Fullscreen)
-			options.modified = true
-		end
-		return true
-	end,
+	['fullscreen'] = f_boolConfVar('Fullscreen', toggleFullscreen, options.f_boolDisplay),
 	--VSync
 	['vretrace'] = function(t, item, cursorPosY, moveTxt)
 		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
@@ -839,20 +620,7 @@ options.t_itemname = {
 		return true
 	end,
 	--MSAA
-	['msaa'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			if config.MSAA then
-				config.MSAA = false
-			else
-				config.MSAA = true
-			end
-			t.items[item].vardisplay = options.f_boolDisplay(config.MSAA, motif.option_info.menu_valuename_enabled, motif.option_info.menu_valuename_disabled)
-			options.modified = true
-			options.needReload = true
-		end
-		return true
-	end,
+	['msaa'] = f_boolConfVar('MSAA', function(n) options.needReload = true end, function(n) options.f_boolDisplay(n, motif.option_info.menu_valuename_enabled, motif.option_info.menu_valuename_disabled) end),
 	--Shaders (submenu)
 	['shaders'] = function(t, item, cursorPosY, moveTxt)
 		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
@@ -888,103 +656,17 @@ options.t_itemname = {
 		return true
 	end,
 	--Master Volume
-	['mastervolume'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F'}) and config.VolumeMaster < 200 then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.VolumeMaster = config.VolumeMaster + 1
-			t.items[item].vardisplay = config.VolumeMaster .. '%'
-			setVolumeMaster(config.VolumeMaster)
-			options.modified = true
-		elseif main.f_input(main.t_players, {'$B'}) and config.VolumeMaster > 0 then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.VolumeMaster = config.VolumeMaster - 1
-			t.items[item].vardisplay = config.VolumeMaster  .. '%'
-			setVolumeMaster(config.VolumeMaster)
-			options.modified = true
-		end
-		return true
-	end,
+	['mastervolume'] = f_numericConfVar('VolumeMaster', 0, 200, 1, setVolumeMaster, function(n) return n .. '%' end),
 	--BGM Volume
-	['bgmvolume'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F'}) and config.VolumeBgm < 100 then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.VolumeBgm = config.VolumeBgm + 1
-			t.items[item].vardisplay = config.VolumeBgm .. '%'
-			setVolumeBgm(config.VolumeBgm)
-			options.modified = true
-		elseif main.f_input(main.t_players, {'$B'}) and config.VolumeBgm > 0 then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.VolumeBgm = config.VolumeBgm - 1
-			t.items[item].vardisplay = config.VolumeBgm .. '%'
-			setVolumeBgm(config.VolumeBgm)
-			options.modified = true
-		end
-		return true
-	end,
+	['bgmvolume'] = f_numericConfVar('VolumeBgm', 0, 100, 1, setVolumeMaster, function(n) return n .. '%' end),
 	--SFX Volume
-	['sfxvolume'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F'}) and config.VolumeSfx < 100 then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.VolumeSfx = config.VolumeSfx + 1
-			t.items[item].vardisplay = config.VolumeSfx .. '%'
-			setVolumeSfx(config.VolumeSfx)
-			options.modified = true
-		elseif main.f_input(main.t_players, {'$B'}) and config.VolumeSfx > 0 then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.VolumeSfx = config.VolumeSfx - 1
-			t.items[item].vardisplay = config.VolumeSfx .. '%'
-			setVolumeSfx(config.VolumeSfx)
-			options.modified = true
-		end
-		return true
-	end,
+	['sfxvolume'] = f_numericConfVar('VolumeSfx', 0, 100, 1, setVolumeMaster, function(n) return n .. '%' end),
 	--Audio Ducking
-	['audioducking'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			if config.AudioDucking then
-				config.AudioDucking = false
-			else
-				config.AudioDucking = true
-			end
-			t.items[item].vardisplay = options.f_boolDisplay(config.AudioDucking, motif.option_info.menu_valuename_enabled, motif.option_info.menu_valuename_disabled)
-			setAudioDucking(config.AudioDucking)
-			options.modified = true
-		end
-		return true
-	end,
+	['audioducking'] = f_boolConfVar('AudioDucking', setAudioDucking, function(n) options.f_boolDisplay(n, motif.option_info.menu_valuename_enabled, motif.option_info.menu_valuename_disabled) end),
 	--Stereo Effects
-	['stereoeffects'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F', '$B', 'pal', 's'}) then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			if config.StereoEffects then
-				config.StereoEffects = false
-			else
-				config.StereoEffects = true
-			end
-			t.items[item].vardisplay = options.f_boolDisplay(config.StereoEffects, motif.option_info.menu_valuename_enabled, motif.option_info.menu_valuename_disabled)
-			setStereoEffects(config.StereoEffects)
-			options.modified = true
-		end
-		return true
-	end,
+	['stereoeffects'] = f_boolConfVar('StereoEffects', setStereoEffects, function(n) options.f_boolDisplay(n, motif.option_info.menu_valuename_enabled, motif.option_info.menu_valuename_disabled) end),
 	--Panning Width
-	['panningrange'] = function(t, item, cursorPosY, moveTxt)
-		if main.f_input(main.t_players, {'$F'}) and config.PanningRange < 100 then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.PanningRange = config.PanningRange + 1
-			setPanningRange(config.PanningRange)
-			t.items[item].vardisplay = config.PanningRange .. '%'
-			options.modified = true
-		elseif main.f_input(main.t_players, {'$B'}) and config.PanningRange > 0 then
-			sndPlay(motif.files.snd_data, motif.option_info.cursor_move_snd[1], motif.option_info.cursor_move_snd[2])
-			config.PanningRange = config.PanningRange - 1
-			setPanningRange(config.PanningRange)
-			t.items[item].vardisplay = config.PanningRange .. '%'
-			options.modified = true
-		end
-		return true
-	end,
+	['panningrange'] = f_numericConfVar('PanningRange', 0, 100, 1, setPanningRange, function(n) return n .. '%' end),
 	--Key Config
 	['keyboard'] = function(t, item, cursorPosY, moveTxt)
 		if main.f_input(main.t_players, {'pal', 's'}) --[[or getKey():match('^F[0-9]+$')]] then
