@@ -2140,6 +2140,27 @@ function start.f_selectScreen()
 			main.f_fadeReset('fadeout', motif.select_info)
 			escFlag = true
 		end
+		--exit using back button (CFTE)
+		if not escFlag and main.f_input(main.t_players, {'c'}) then
+			if selCharEnd then
+				for side = 1, 2 do
+					start.p[side].t_selected = {}
+					start.p[side].t_selTemp = {}
+					start.p[side].t_selCmd = {}
+					start.p[side].numChars = 0
+					start.p[side].selEnd = false
+					start.p[side].teamEnd = false
+					for k, v in ipairs(start.p[side].t_selCmd) do
+						v.selectState = 0
+					end
+				end
+				selScreenEnd = false
+				selCharEnd = false
+			else
+				main.f_fadeReset('fadeout', motif.select_info)
+				escFlag = true
+			end
+		end
 		--draw names
 		for side = 1, 2 do
 			if #start.p[side].t_selTemp > 0 and not reserved[side] and not selCharEnd then

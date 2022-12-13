@@ -135,7 +135,7 @@ end
 function main.f_btnPalNo(p)
 	local s = 0
 	if commandGetState(main.t_cmd[p], '/s') then s = 6 end
-	for i, k in pairs({'a', 'b', 'c', 'x', 'y', 'z'}) do
+	for i, k in pairs({'a', 'b', 'x', 'y'}) do -- CFTE: 'c' and 'z' do not select
 		if commandGetState(main.t_cmd[p], k) then return i + s end
 	end
 	return 0
