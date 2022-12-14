@@ -249,8 +249,8 @@ function loop()
 		menu.f_run()
 	else
 		main.f_cmdInput()
-		--esc / m
-		if (esc() or (main.f_input(main.t_players, {'DISABLED_m'}) and not network())) and not start.challengerInit then
+		--esc / m  CFTE: use 's' for the pause menu instead
+		if (esc() or (main.f_input(main.t_players, {'s'}) and not network())) and not start.challengerInit then
 			if network() or gamemode('demo') or gamemode('randomtest') or (not config.EscOpensMenu and esc()) then
 				endMatch()
 			else
