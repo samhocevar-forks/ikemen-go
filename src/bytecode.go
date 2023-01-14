@@ -516,6 +516,7 @@ const (
 	OC_ex_reversaldefattr
 	OC_ex_bgmlength
 	OC_ex_bgmposition
+	OC_ex_selfcommand
 )
 const (
 	NumVar     = OC_sysvar0 - OC_var0
@@ -1156,8 +1157,7 @@ func (be BytecodeExp) run(c *Char) BytecodeValue {
 		case OC_canrecover:
 			sys.bcStack.PushB(c.canRecover())
 		case OC_command:
-			sys.bcStack.PushB(c.command(sys.workingState.playerNo,
-				int(*(*int32)(unsafe.Pointer(&be[i])))))
+			sys.bcStack.PushB(c.commandByName(sys.stringPool[sys.workingState.playerNo].List[*(*int32)(unsafe.Pointer(&be[i]))]))
 			i += 4
 		case OC_ctrl:
 			sys.bcStack.PushB(c.ctrl())
@@ -1244,9 +1244,21 @@ func (be BytecodeExp) run(c *Char) BytecodeValue {
 		case OC_palno:
 			sys.bcStack.PushI(c.palno())
 		case OC_pos_x:
-			sys.bcStack.PushF((c.pos[0]*(c.localscl/oc.localscl) - sys.cam.Pos[0]/oc.localscl))
+			var bindVelx float32
+			if c.bindToId > 0 && !math.IsNaN(float64(c.bindPos[0])) && c.stCgi().ikemenver[0] == 0 && c.stCgi().ikemenver[1] == 0 {
+				if sys.playerID(c.bindToId) != nil {
+					bindVelx = c.vel[0]
+				}
+			}
+			sys.bcStack.PushF(((c.pos[0]+bindVelx)*(c.localscl/oc.localscl) - sys.cam.Pos[0]/oc.localscl))
 		case OC_pos_y:
-			sys.bcStack.PushF((c.pos[1] - c.platformPosY) * (c.localscl / oc.localscl))
+			var bindVely float32
+			if c.bindToId > 0 && !math.IsNaN(float64(c.bindPos[1])) && c.stCgi().ikemenver[0] == 0 && c.stCgi().ikemenver[1] == 0 {
+				if sys.playerID(c.bindToId) != nil {
+					bindVely = c.vel[1]
+				}
+			}
+			sys.bcStack.PushF((c.pos[1] + bindVely - c.platformPosY) * (c.localscl / oc.localscl))
 		case OC_power:
 			sys.bcStack.PushI(c.getPower())
 		case OC_powermax:
@@ -2016,6 +2028,10 @@ func (be BytecodeExp) run_ex(c *Char, i *int, oc *Char) {
 		} else {
 			sys.bcStack.PushI(int32(sys.bgm.streamer.Position()))
 		}
+	case OC_ex_selfcommand:
+		sys.bcStack.PushB(c.command(sys.workingState.playerNo,
+			int(*(*int32)(unsafe.Pointer(&be[*i])))))
+		*i += 4
 	default:
 		sys.errLog.Printf("%v\n", be[*i-1])
 		c.panic()
@@ -2178,14 +2194,16 @@ func (StateControllerBase) beToExp(be ...BytecodeExp) []BytecodeExp {
 	return be
 }
 
-/*func (StateControllerBase) fToExp(f ...float32) (exp []BytecodeExp) {
-	for _, v := range f {
-		var be BytecodeExp
-		be.appendValue(BytecodeFloat(v))
-		exp = append(exp, be)
+/*
+	func (StateControllerBase) fToExp(f ...float32) (exp []BytecodeExp) {
+		for _, v := range f {
+			var be BytecodeExp
+			be.appendValue(BytecodeFloat(v))
+			exp = append(exp, be)
+		}
+		return
 	}
-	return
-}*/
+*/
 func (StateControllerBase) iToExp(i ...int32) (exp []BytecodeExp) {
 	for _, v := range i {
 		var be BytecodeExp
@@ -2984,9 +3002,17 @@ func (sc posSet) Run(c *Char, _ []int32) bool {
 	StateControllerBase(sc).run(c, func(id byte, exp []BytecodeExp) bool {
 		switch id {
 		case posSet_x:
-			crun.setX(sys.cam.Pos[0]/crun.localscl + exp[0].evalF(c)*lclscround)
+			x := sys.cam.Pos[0]/crun.localscl + exp[0].evalF(c)*lclscround
+			crun.setX(x)
+			if crun.bindToId > 0 && !math.IsNaN(float64(crun.bindPos[0])) && sys.playerID(crun.bindToId) != nil {
+				crun.bindPosAdd[0] = x
+			}
 		case posSet_y:
-			crun.setY(exp[0].evalF(c)*lclscround + crun.platformPosY)
+			y := exp[0].evalF(c)*lclscround + crun.platformPosY
+			crun.setY(y)
+			if crun.bindToId > 0 && !math.IsNaN(float64(crun.bindPos[1])) && sys.playerID(crun.bindToId) != nil {
+				crun.bindPosAdd[1] = y
+			}
 		case posSet_z:
 			if crun.size.z.enable {
 				crun.setZ(exp[0].evalF(c) * lclscround)
@@ -3014,9 +3040,17 @@ func (sc posAdd) Run(c *Char, _ []int32) bool {
 	StateControllerBase(sc).run(c, func(id byte, exp []BytecodeExp) bool {
 		switch id {
 		case posSet_x:
-			crun.addX(exp[0].evalF(c) * lclscround)
+			x := exp[0].evalF(c) * lclscround
+			crun.addX(x)
+			if crun.bindToId > 0 && !math.IsNaN(float64(crun.bindPos[0])) && sys.playerID(crun.bindToId) != nil {
+				crun.bindPosAdd[0] = x
+			}
 		case posSet_y:
-			crun.addY(exp[0].evalF(c) * lclscround)
+			y := exp[0].evalF(c) * lclscround
+			crun.addY(y)
+			if crun.bindToId > 0 && !math.IsNaN(float64(crun.bindPos[1])) && sys.playerID(crun.bindToId) != nil {
+				crun.bindPosAdd[1] = y
+			}
 		case posSet_z:
 			if crun.size.z.enable {
 				crun.addZ(exp[0].evalF(c) * lclscround)
@@ -6555,11 +6589,13 @@ const (
 	zoom_lag
 	zoom_redirectid
 	zoom_camerabound
+	zoom_time
 )
 
 func (sc zoom) Run(c *Char, _ []int32) bool {
 	crun := c
 	zoompos := [2]float32{0, 0}
+	t := int32(1)
 	StateControllerBase(sc).run(c, func(id byte, exp []BytecodeExp) bool {
 		switch id {
 		case zoom_pos:
@@ -6569,11 +6605,12 @@ func (sc zoom) Run(c *Char, _ []int32) bool {
 			}
 		case zoom_scale:
 			sys.zoomScale = exp[0].evalF(c)
-			sys.enableZoomstate = true
 		case zoom_camerabound:
 			sys.zoomCameraBound = exp[0].evalB(c)
 		case zoom_lag:
 			sys.zoomlag = exp[0].evalF(c)
+		case zoom_time:
+			t = exp[0].evalI(c)
 		case zoom_redirectid:
 			if rid := sys.playerID(exp[0].evalI(c)); rid != nil {
 				crun = rid
@@ -6585,6 +6622,7 @@ func (sc zoom) Run(c *Char, _ []int32) bool {
 	})
 	sys.zoomPos[0] = sys.zoomScale * zoompos[0]
 	sys.zoomPos[1] = zoompos[1]
+	sys.enableZoomtime = t
 	return false
 }
 

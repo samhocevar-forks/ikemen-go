@@ -127,6 +127,8 @@ func (c *Compiler) assertSpecial(is IniSection, sc *StateControllerBase, _ int8)
 				sc.add(assertSpecial_flag, sc.iToExp(int32(CSF_noguardpointsdamage)))
 			case "noredlifedamage":
 				sc.add(assertSpecial_flag, sc.iToExp(int32(CSF_noredlifedamage)))
+			case "nomakedust":
+				sc.add(assertSpecial_flag, sc.iToExp(int32(CSF_nomakedust)))
 			case "intro":
 				sc.add(assertSpecial_flag_g, sc.iToExp(int32(GSF_intro)))
 			case "roundnotover":
@@ -3450,6 +3452,10 @@ func (c *Compiler) zoom(is IniSection, sc *StateControllerBase, _ int8) (StateCo
 		}
 		if err := c.paramValue(is, sc, "camerabound",
 			zoom_camerabound, VT_Bool, 1, false); err != nil {
+			return err
+		}
+		if err := c.paramValue(is, sc, "time",
+			zoom_time, VT_Int, 1, false); err != nil {
 			return err
 		}
 		return nil

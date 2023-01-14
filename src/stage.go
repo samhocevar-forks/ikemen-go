@@ -354,10 +354,18 @@ func (bg backGround) draw(pos [2]float32, scl, bgscl, lclscl float32,
 	}
 	xras := (bg.rasterx[1] - bg.rasterx[0]) / bg.rasterx[0]
 	xbs, dx := bg.xscale[1], MaxF(0, bg.delta[0]*bgscl)
-	sclx := MaxF(0, scl+(1-scl)*(1-dx))
-	scly := MaxF(0, scl+(1-scl)*(1-MaxF(0, bg.delta[1]*bgscl)))
-	var sclx_recip float32 = 1
+	var sclx_recip, sclx, scly float32 = 1, 1, 1
 	lscl := [...]float32{lclscl * stgscl[0], lclscl * stgscl[1]}
+	if bg.zoomdelta[0] != math.MaxFloat32 {
+		sclx = scl + (1-scl)*(1-bg.zoomdelta[0])
+		scly = scl + (1-scl)*(1-bg.zoomdelta[1])
+		if !bg.autoresizeparallax {
+			sclx_recip = (1 + bg.zoomdelta[0]*((1/(sclx*lscl[0])*lscl[0])-1))
+		}
+	} else {
+		sclx = MaxF(0, scl+(1-scl)*(1-dx))
+		scly = MaxF(0, scl+(1-scl)*(1-MaxF(0, bg.delta[1]*bgscl)))
+	}
 	if sclx != 0 && bg.autoresizeparallax {
 		tmp := 1 / sclx
 		if bg.xbottomzoomdelta != math.MaxFloat32 {
@@ -369,13 +377,6 @@ func (bg backGround) draw(pos [2]float32, scl, bgscl, lclscl float32,
 		xras -= tmp - 1
 		xbs *= tmp
 	}
-	if bg.zoomdelta[0] != math.MaxFloat32 {
-		sclx = scl + (1-scl)*(1-bg.zoomdelta[0])
-		scly = scl + (1-scl)*(1-bg.zoomdelta[1])
-		if !bg.autoresizeparallax {
-			sclx_recip = (1 + bg.zoomdelta[0]*((1/(sclx*lscl[0])*lscl[0])-1))
-		}
-	}
 	var xs3, ys3 float32 = 1, 1
 	if bg.zoomscaledelta[0] != math.MaxFloat32 {
 		xs3 = ((scl + (1-scl)*(1-bg.zoomscaledelta[0])) / sclx)
@@ -383,7 +384,6 @@ func (bg backGround) draw(pos [2]float32, scl, bgscl, lclscl float32,
 	if bg.zoomscaledelta[1] != math.MaxFloat32 {
 		ys3 = ((scl + (1-scl)*(1-bg.zoomscaledelta[1])) / scly)
 	}
-
 	scly *= lclscl
 	sclx *= lscl[0]
 	// This handles the flooring of the camera position in MUGEN versions earlier than 1.0.
@@ -394,8 +394,10 @@ func (bg backGround) draw(pos [2]float32, scl, bgscl, lclscl float32,
 	}
 	x := bg.start[0] + bg.xofs - (pos[0]/stgscl[0]+bg.camstartx)*bg.delta[0] +
 		bg.bga.offset[0]
-	y := bg.start[1] - ((pos[1]-sys.cam.CameraZoomYBound*(1-bg.zoomdelta[1]))/stgscl[1])*bg.delta[1] + bg.bga.offset[1]
-	ys2 := bg.scaledelta[1] * pos[1] * bg.delta[1] * bgscl
+	yScrollPos := ((pos[1] - (sys.cam.CameraZoomYBound / lclscl)) / stgscl[1]) * bg.delta[1]
+	yScrollPos += ((sys.cam.CameraZoomYBound / lclscl) / stgscl[1]) * Pow(bg.zoomdelta[1], 1.4) / bgscl
+	y := bg.start[1] - yScrollPos + bg.bga.offset[1]
+	ys2 := bg.scaledelta[1] * (pos[1] - sys.cam.CameraZoomYBound) * bg.delta[1] * bgscl
 	ys := ((100-pos[1]*bg.yscaledelta)*bgscl/bg.yscalestart)*bg.scalestart[1] + ys2
 	xs := bg.scaledelta[0] * pos[0] * bg.delta[0] * bgscl
 	x *= bgscl
@@ -523,7 +525,7 @@ func (bgc *bgCtrl) read(is IniSection, idx int) {
 			bgc.invall = tmp != 0
 		}
 		if is.ReadF32("color", &bgc.color) {
-			bgc.color = bgc.color/256
+			bgc.color = bgc.color / 256
 		}
 	} else if is.ReadF32("value", &bgc.x) {
 		is.readI32ForStage("value", &bgc.v[0], &bgc.v[1], &bgc.v[2])
@@ -976,7 +978,12 @@ func loadStage(def string, main bool) (*Stage, error) {
 			MinF(float32(s.stageCamera.localcoord[1])*s.localscl*0.5*
 				(ratio1/ratio2-1), float32(Max(0, s.stageCamera.overdrawlow)))
 	}
-	s.stageCamera.drawOffsetY += MinF(float32(s.stageCamera.boundlow), MaxF(0, float32(s.stageCamera.floortension)*s.stageCamera.verticalfollow)) * s.localscl
+	if !s.stageCamera.ytensionenable {
+		s.stageCamera.drawOffsetY += MinF(float32(s.stageCamera.boundlow), MaxF(0, float32(s.stageCamera.floortension)*s.stageCamera.verticalfollow)) * s.localscl
+	} else {
+		s.stageCamera.drawOffsetY += MinF(float32(s.stageCamera.boundlow),
+			MaxF(0, (-26+(240/(float32(sys.gameWidth)/float32(s.stageCamera.localcoord[0])))-float32(s.stageCamera.tensionhigh)))) * s.localscl
+	}
 	//TODO: test if it works reasonably close to mugen
 	if sys.gameWidth > s.stageCamera.localcoord[0]*3*320/(s.stageCamera.localcoord[1]*4) {
 		if s.stageCamera.cutlow == math.MinInt32 {
@@ -1198,12 +1205,12 @@ func (s *Stage) action() {
 			// TODO: Finish proper synthesization of bgPalFX into PalFX from bg element
 			// (Right now, bgPalFX just overrides all unique parameters from BG Elements' PalFX)
 			// for j := 0; j < 3; j++ {
-				// if sys.bgPalFX.invertall {
-					// b.palfx.eAdd[j] = -b.palfx.add[j] * (b.palfx.mul[j]/256) + 256 * (1-(b.palfx.mul[j]/256))
-					// b.palfx.eMul[j] = 256
-				// }
-				// b.palfx.eAdd[j] = int32((float32(b.palfx.eAdd[j])) * sys.bgPalFX.eColor)
-				// b.palfx.eMul[j] = int32(float32(b.palfx.eMul[j]) * sys.bgPalFX.eColor + 256*(1-sys.bgPalFX.eColor))
+			// if sys.bgPalFX.invertall {
+			// b.palfx.eAdd[j] = -b.palfx.add[j] * (b.palfx.mul[j]/256) + 256 * (1-(b.palfx.mul[j]/256))
+			// b.palfx.eMul[j] = 256
+			// }
+			// b.palfx.eAdd[j] = int32((float32(b.palfx.eAdd[j])) * sys.bgPalFX.eColor)
+			// b.palfx.eMul[j] = int32(float32(b.palfx.eMul[j]) * sys.bgPalFX.eColor + 256*(1-sys.bgPalFX.eColor))
 			// }
 			// b.palfx.synthesize(sys.bgPalFX)
 			b.palfx.eAdd = sys.bgPalFX.eAdd
@@ -1233,11 +1240,15 @@ func (s *Stage) draw(top bool, x, y, scl float32) {
 	if s.hires {
 		bgscl = 0.5
 	}
+	if s.stageCamera.boundhigh > 0 {
+		y += float32(s.stageCamera.boundhigh)
+	}
 	yofs, pos := sys.envShake.getOffset(), [...]float32{x, y}
 	scl2 := s.localscl * scl
-	if pos[1] <= float32(s.stageCamera.boundlow) && pos[1] < float32(s.stageCamera.boundhigh) {
-		yofs += (pos[1] - float32(s.stageCamera.boundhigh)) * scl2
-		pos[1] = float32(s.stageCamera.boundhigh)
+	if pos[1] <= float32(s.stageCamera.boundlow) && pos[1] < float32(s.stageCamera.boundhigh)-sys.cam.ExtraBoundH {
+		yofs += (pos[1]-float32(s.stageCamera.boundhigh))*scl2 +
+			sys.cam.ExtraBoundH*scl
+		pos[1] = float32(s.stageCamera.boundhigh) - sys.cam.ExtraBoundH/s.localscl
 	}
 	if s.stageCamera.verticalfollow > 0 {
 		if yofs < 0 {
@@ -1349,7 +1360,7 @@ func (s *Stage) modifyBGCtrl(id int32, t, v [3]int32, x, y float32, src, dst [2]
 				s.bgc[i].invall = invall != 0
 			}
 			if !math.IsNaN(float64(color)) {
-				s.bgc[i].color = color/256
+				s.bgc[i].color = color / 256
 			}
 			s.reload = true
 		}

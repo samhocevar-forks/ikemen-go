@@ -180,6 +180,7 @@ var triggerMap = map[string]int{
 	"enemy":     0,
 	"enemynear": 0,
 	"playerid":  0,
+	"p2":        0,
 	//vanilla triggers
 	"abs":               1,
 	"acos":              1,
@@ -352,6 +353,7 @@ var triggerMap = map[string]int{
 	"score":            1,
 	"scoretotal":       1,
 	"selfstatenoexist": 1,
+	"selfcommand":      1,
 	"sprpriority":      1,
 	"stagebackedge":    1,
 	"stageconst":       1,
@@ -763,14 +765,17 @@ func (c *Compiler) kakkohiraku(in *string) error {
 	return nil
 }
 
-/* TODO: Case sensitive maps
-func (c *Compiler) kakkohirakuCS(in *string) error {
-	if c.tokenizerCS(in) != "(" {
-		return Error("Missing '(' after " + c.token)
+/*
+TODO: Case sensitive maps
+
+	func (c *Compiler) kakkohirakuCS(in *string) error {
+		if c.tokenizerCS(in) != "(" {
+			return Error("Missing '(' after " + c.token)
+		}
+		c.token = c.tokenizerCS(in)
+		return nil
 	}
-	c.token = c.tokenizerCS(in)
-	return nil
-}*/
+*/
 func (c *Compiler) kakkotojiru() error {
 	c.usiroOp = true
 	if c.token != ")" {
@@ -1161,13 +1166,16 @@ func (c *Compiler) expValue(out *BytecodeExp, in *string,
 	case "":
 		return bvNone(), Error("Nothing assigned")
 	case "root", "player", "parent", "helper", "target", "partner",
-		"enemy", "enemynear", "playerid":
+		"enemy", "enemynear", "playerid", "p2":
 		switch c.token {
 		case "parent":
 			opc = OC_parent
 			c.token = c.tokenizer(in)
 		case "root":
 			opc = OC_root
+			c.token = c.tokenizer(in)
+		case "p2":
+			opc = OC_p2
 			c.token = c.tokenizer(in)
 		default:
 			switch c.token {
@@ -1421,7 +1429,13 @@ func (c *Compiler) expValue(out *BytecodeExp, in *string,
 		out.append(OC_camerazoom)
 	case "canrecover":
 		out.append(OC_canrecover)
-	case "command":
+	case "command", "selfcommand":
+		switch c.token {
+		case "command":
+			opc = OC_command
+		case "selfcommand":
+			opc = OC_ex_selfcommand
+		}
 		if err := eqne(func() error {
 			if err := text(); err != nil {
 				return err
@@ -1430,7 +1444,12 @@ func (c *Compiler) expValue(out *BytecodeExp, in *string,
 			if !ok {
 				return Error("Command doesn't exist: " + c.token)
 			}
-			out.appendI32Op(OC_command, int32(i))
+			if opc == OC_command {
+				i = sys.stringPool[c.playerNo].Add(c.token)
+			} else {
+				out.append(OC_ex_)
+			}
+			out.appendI32Op(opc, int32(i))
 			return nil
 		}); err != nil {
 			return bvNone(), err
@@ -1798,21 +1817,21 @@ func (c *Compiler) expValue(out *BytecodeExp, in *string,
 			return nil
 		}
 		// if sys.cgi[c.playerNo].ver[0] == 1 {
-			// if err := eqne(hda); err != nil {
-				// return bvNone(), err
-			// }
+		// if err := eqne(hda); err != nil {
+		// return bvNone(), err
+		// }
 		// } else {
-			// if not, err := c.kyuushiki(in); err != nil {
-				// if sys.ignoreMostErrors {
-					// out.appendValue(BytecodeBool(false))
-				// } else {
-					// return bvNone(), err
-				// }
-			// } else if err := hda(); err != nil {
-				// return bvNone(), err
-			// } else if not && !sys.ignoreMostErrors {
-				// return bvNone(), Error("hitdefattr doesn't support '!=' in this mugenversion")
-			// }
+		// if not, err := c.kyuushiki(in); err != nil {
+		// if sys.ignoreMostErrors {
+		// out.appendValue(BytecodeBool(false))
+		// } else {
+		// return bvNone(), err
+		// }
+		// } else if err := hda(); err != nil {
+		// return bvNone(), err
+		// } else if not && !sys.ignoreMostErrors {
+		// return bvNone(), Error("hitdefattr doesn't support '!=' in this mugenversion")
+		// }
 		// }
 		if err := eqne(hda); err != nil {
 			return bvNone(), err
@@ -2084,7 +2103,6 @@ func (c *Compiler) expValue(out *BytecodeExp, in *string,
 		if err := c.kakkotojiru(); err != nil {
 			return bvNone(), err
 		}
-		var opc OpCode
 		isStr := false
 		switch svname {
 		case "info.name":
@@ -2634,6 +2652,8 @@ func (c *Compiler) expValue(out *BytecodeExp, in *string,
 			out.appendI32Op(OC_ex_isassertedchar, int32(CSF_noguardpointsdamage))
 		case "noredlifedamage":
 			out.appendI32Op(OC_ex_isassertedchar, int32(CSF_noredlifedamage))
+		case "nomakedust":
+			out.appendI32Op(OC_ex_isassertedchar, int32(CSF_nomakedust))
 		case "intro":
 			out.appendI32Op(OC_ex_isassertedglobal, int32(GSF_intro))
 		case "roundnotover":

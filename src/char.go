@@ -57,6 +57,7 @@ const (
 	CSF_nodizzypointsdamage
 	CSF_noguardpointsdamage
 	CSF_noredlifedamage
+	CSF_nomakedust
 	CSF_screenbound
 	CSF_movecamera_x
 	CSF_movecamera_y
@@ -79,7 +80,7 @@ const (
 		CSF_nofastrecoverfromliedown | CSF_nofallcount | CSF_nofalldefenceup |
 		CSF_noturntarget | CSF_noinput | CSF_nopowerbardisplay | CSF_autoguard |
 		CSF_animfreeze | CSF_postroundinput | CSF_nodizzypointsdamage |
-		CSF_noguardpointsdamage | CSF_noredlifedamage
+		CSF_noguardpointsdamage | CSF_noredlifedamage | CSF_nomakedust
 )
 
 type GlobalSpecialFlag uint32
@@ -1602,6 +1603,7 @@ type CharSystemVar struct {
 	bindTime         int32
 	bindToId         int32
 	bindPos          [2]float32
+	bindPosAdd       [2]float32
 	bindFacing       float32
 	hitPauseTime     int32
 	angle            float32
@@ -1676,6 +1678,7 @@ type Char struct {
 	targets         []int32
 	targetsOfHitdef []int32
 	enemynear       [2][]*Char
+	p2enemy         []*Char
 	pos             [3]float32
 	drawPos         [3]float32
 	oldPos          [3]float32
@@ -1849,7 +1852,8 @@ func (c *Char) clear2() {
 		attackMul:       float32(c.gi().data.attack) * c.ocd().attackRatio / 100,
 		fallDefenseMul:  1,
 		superDefenseMul: 1,
-		customDefense:   1}
+		customDefense:   1,
+		finalDefense:    1.0}
 	c.oldPos, c.drawPos = c.pos, c.pos
 	if c.helperIndex == 0 && c.teamside != -1 {
 		if sys.roundsExisted[c.playerNo&1] > 0 {
@@ -3299,6 +3303,11 @@ func (c *Char) destroy() {
 		c.fakeCombo = false
 		for _, tid := range c.targets {
 			if t := sys.playerID(tid); t != nil {
+				if t.bindToId == c.id {
+					if t.ss.moveType == MT_H {
+						t.selfState(5050, -1, -1, -1, false)
+					}
+				}
 				t.gethitBindClear()
 				t.ghv.dropId(c.id)
 			}
@@ -3821,21 +3830,19 @@ func (c *Char) setHitdefDefault(hd *HitDef, proj bool) {
 	ifnanset(&hd.down_velocity[1], hd.air_velocity[1])
 	ifnanset(&hd.fall.yvelocity, -4.5/c.localscl)
 	ifierrset(&hd.fall.envshake_ampl, -4)
-	if hd.fall.animtype == RA_Unknown {
-		if hd.air_animtype != RA_Unknown {
-			hd.fall.animtype = hd.air_animtype
-		} else if hd.animtype < RA_Back {
-			hd.fall.animtype = RA_Back
-		} else {
-			hd.fall.animtype = hd.animtype
-		}
-	}
 	if hd.air_animtype == RA_Unknown {
 		hd.air_animtype = hd.animtype
 	}
-	if hd.animtype == RA_Back {
-		hd.animtype = RA_Hard
+	if hd.fall.animtype == RA_Unknown {
+		if hd.air_animtype >= RA_Up {
+			hd.fall.animtype = hd.air_animtype
+		} else {
+			hd.fall.animtype = RA_Back
+		}
 	}
+	// if hd.animtype == RA_Back {
+	// hd.animtype = RA_Hard
+	// }
 	if hd.air_type == HT_Unknown {
 		if hd.ground_type == HT_Trip {
 			hd.air_type = HT_High
@@ -3911,6 +3918,9 @@ func (c *Char) gethitAnimtype() Reaction {
 		return c.ghv.fall.animtype
 	} else if c.ss.stateType == ST_A {
 		return c.ghv.airanimtype
+	}
+	if c.ghv.groundanimtype == RA_Back {
+		return RA_Hard
 	}
 	return c.ghv.groundanimtype
 }
@@ -4397,7 +4407,17 @@ func (c *Char) consecutiveWins() int32 {
 	return sys.consecutiveWins[c.teamside]
 }
 func (c *Char) distX(opp *Char, oc *Char) float32 {
-	return (opp.pos[0]*opp.localscl - c.pos[0]*c.localscl) / oc.localscl
+	currentPosX := c.pos[0] * c.localscl
+	if c.bindToId > 0 && !math.IsNaN(float64(c.bindPos[0])) && c.stCgi().ikemenver[0] == 0 && c.stCgi().ikemenver[1] == 0 {
+		if bt := sys.playerID(c.bindToId); bt != nil {
+			f := bt.facing
+			if AbsF(c.bindFacing) == 2 {
+				f = c.bindFacing / 2
+			}
+			currentPosX = bt.pos[0]*bt.localscl/c.localscl + f*(c.bindPos[0]+c.bindPosAdd[0])
+		}
+	}
+	return (opp.pos[0]*opp.localscl - currentPosX) / oc.localscl
 }
 func (c *Char) bodyDistX(opp *Char, oc *Char) float32 {
 	dist := c.distX(opp, oc)
@@ -4423,7 +4443,13 @@ func (c *Char) rdDistY(rd *Char, oc *Char) BytecodeValue {
 	if rd == nil {
 		return BytecodeSF()
 	}
-	dist := (rd.pos[1]*rd.localscl - c.pos[1]*c.localscl) / oc.localscl
+	currentPosY := c.pos[1] * c.localscl
+	if c.bindToId > 0 && !math.IsNaN(float64(c.bindPos[1])) && c.stCgi().ikemenver[0] == 0 && c.stCgi().ikemenver[1] == 0 {
+		if bt := sys.playerID(c.bindToId); bt != nil {
+			currentPosY = bt.pos[1]*bt.localscl/c.localscl + (c.bindPos[1] + c.bindPosAdd[1])
+		}
+	}
+	dist := (rd.pos[1]*rd.localscl - currentPosY) / oc.localscl
 	return BytecodeFloat(dist)
 }
 func (c *Char) p2BodyDistX(oc *Char) BytecodeValue {
@@ -4972,6 +4998,7 @@ func (c *Char) posUpdate() {
 			c.velOff = 0
 		}
 	}
+	c.bindPosAdd = [...]float32{0, 0}
 }
 func (c *Char) addTarget(id int32) {
 	if !c.hasTarget(id) {
@@ -4997,15 +5024,13 @@ func (c *Char) hasTargetOfHitdef(id int32) bool {
 func (c *Char) setBindTime(time int32) {
 	c.bindTime = time
 	if time == 0 {
-		if c.bindToId >= 0 {
-			c.bindToId = -1
-		}
+		c.bindToId = -1
 		c.bindFacing = 0
 	}
 }
 func (c *Char) setBindToId(to *Char) {
 	if c.bindToId != to.id {
-		c.bindToId = -to.id
+		c.bindToId = to.id
 	}
 	if c.bindFacing == 0 {
 		c.bindFacing = to.facing * 2
@@ -5016,19 +5041,12 @@ func (c *Char) setBindToId(to *Char) {
 }
 func (c *Char) bind() {
 	if c.bindTime == 0 {
+		if c.bindToId > 0 {
+			c.setBindTime(0)
+		}
 		return
 	}
-	Bid := c.bindToId
-	if Bid < -1 {
-		if bt := sys.playerID(-Bid); bt != nil {
-			if bt.sf(CSF_destroy) {
-				c.setBindTime(0)
-				return
-			}
-		}
-		Bid *= -1
-	}
-	if bt := sys.playerID(Bid); bt != nil {
+	if bt := sys.playerID(c.bindToId); bt != nil {
 		if bt.hasTarget(c.id) {
 			if bt.sf(CSF_destroy) {
 				sys.appendToConsole(c.warn() + fmt.Sprintf("SelfState 5050, helper destroyed: %v", bt.name))
@@ -5038,26 +5056,26 @@ func (c *Char) bind() {
 				c.setBindTime(0)
 				return
 			}
-			if !math.IsNaN(float64(c.bindPos[0])) {
-				c.setXV(c.facing * bt.facing * bt.vel[0])
-			}
-			if !math.IsNaN(float64(c.bindPos[1])) {
-				c.setYV(bt.vel[1])
-			}
+			//if !math.IsNaN(float64(c.bindPos[0])) {
+			//c.setXV(c.facing * bt.facing * bt.vel[0])
+			//}
+			//if !math.IsNaN(float64(c.bindPos[1])) {
+			//c.setYV(bt.vel[1])
+			//}
 		}
 		if !math.IsNaN(float64(c.bindPos[0])) {
 			f := bt.facing
 			if AbsF(c.bindFacing) == 2 {
 				f = c.bindFacing / 2
 			}
-			c.setX(bt.pos[0]*bt.localscl/c.localscl + f*c.bindPos[0])
+			c.setX(bt.pos[0]*bt.localscl/c.localscl + f*(c.bindPos[0]+c.bindPosAdd[0]))
 			c.drawPos[0] += bt.drawPos[0] - bt.pos[0]
 			c.oldPos[0] += bt.oldPos[0] - bt.pos[0]
 			c.pushed = c.pushed || bt.pushed
 			c.ghv.xoff = 0
 		}
 		if !math.IsNaN(float64(c.bindPos[1])) {
-			c.setY(bt.pos[1]*bt.localscl/c.localscl + c.bindPos[1])
+			c.setY(bt.pos[1]*bt.localscl/c.localscl + (c.bindPos[1] + c.bindPosAdd[1]))
 			c.drawPos[1] += bt.drawPos[1] - bt.pos[1]
 			c.oldPos[1] += bt.oldPos[1] - bt.pos[1]
 			c.ghv.yoff = 0
@@ -5221,7 +5239,7 @@ func (c *Char) attrCheck(h *HitDef, pid int32, st StateType) bool {
 	}
 	if (len(c.ghv.hitBy) > 0 && c.ghv.hitBy[len(c.ghv.hitBy)-1][0] == pid) || c.ghv.hitshaketime > 0 { // https://github.com/ikemen-engine/Ikemen-GO/issues/320
 		for _, nci := range h.nochainid {
-			if nci >= 0 && c.ghv.hitid == nci {
+			if nci >= 0 && c.ghv.hitid == nci && c.ghv.id == h.attackerID {
 				return false
 			}
 		}
@@ -5372,7 +5390,9 @@ func (c *Char) actionPrepare() {
 			} else {
 				switch c.ss.no {
 				case 11:
-					c.changeState(12, -1, -1, false)
+					if !c.sf(CSF_nostand) {
+						c.changeState(12, -1, -1, false)
+					}
 				case 20:
 					if !c.sf(CSF_nobrake) && c.cmd[0].Buffer.U < 0 && c.cmd[0].Buffer.D < 0 &&
 						c.cmd[0].Buffer.B < 0 && c.cmd[0].Buffer.F < 0 {
@@ -5518,9 +5538,16 @@ func (c *Char) actionRun() {
 		if c.helperIndex == 0 && c.gi().pctime >= 0 {
 			c.gi().pctime++
 		}
+		// Set vel on binded targets
 		for _, tid := range c.targets {
-			if t := sys.playerID(tid); t != nil && (t.bindToId == c.id || -t.bindToId == c.id) {
-				t.bind()
+			if t := sys.playerID(tid); t != nil && t.bindTime > 0 && !t.sf(CSF_destroy) &&
+				t.bindToId == c.id {
+				if !math.IsNaN(float64(t.bindPos[0])) {
+					t.setXV(t.facing * c.facing * c.vel[0])
+				}
+				if !math.IsNaN(float64(t.bindPos[1])) {
+					t.setYV(c.vel[1])
+				}
 			}
 		}
 	}
@@ -5563,6 +5590,7 @@ func (c *Char) actionFinish() {
 					break
 				}
 				c.changeState(52, -1, -1, false)
+				c.ss.time++
 			}
 			c.setFacing(c.p1facing)
 			c.p1facing = 0
@@ -5572,6 +5600,13 @@ func (c *Char) actionFinish() {
 		}
 	}
 	c.xScreenBound()
+	if !c.pauseBool {
+		for _, tid := range c.targets {
+			if t := sys.playerID(tid); t != nil && t.bindToId == c.id {
+				t.bind()
+			}
+		}
+	}
 	c.minus = 1
 }
 func (c *Char) update(cvmin, cvmax,
@@ -5687,7 +5722,7 @@ func (c *Char) update(cvmin, cvmax,
 				c.ghv.score = 0
 			}
 			if (c.ss.moveType == MT_H || c.ss.no == 52) && c.pos[1] == 0 &&
-				AbsF(c.pos[0]-c.oldPos[0]) >= 1 && c.ss.time%3 == 0 {
+				AbsF(c.pos[0]-c.oldPos[0]) >= 1 && c.ss.time%3 == 0 && !c.sf(CSF_nomakedust) {
 				c.makeDust(0, 0)
 			}
 		}
@@ -5753,20 +5788,13 @@ func (c *Char) tick() {
 	}
 	if c.bindTime > 0 {
 		if c.isBound() {
-			Bid := c.bindToId
-			if Bid < -1 {
-				Bid *= -1
-			}
-			if bt := sys.playerID(Bid); bt != nil && !bt.pause() {
-				c.setBindTime(c.bindTime - 1)
+			if bt := sys.playerID(c.bindToId); bt != nil && !bt.pause() {
+				c.bindTime -= 1
 			}
 		} else {
 			if !c.pause() {
 				c.setBindTime(c.bindTime - 1)
 			}
-		}
-		if c.bindToId < -1 {
-			c.bindToId *= -1
 		}
 	}
 	if c.cmd == nil {
@@ -5813,7 +5841,16 @@ func (c *Char) tick() {
 			pn = c.ghv.playerNo
 		}
 		if c.stchtmp {
-			c.ss.prevno = 0
+			switch c.ss.stateType {
+			case ST_S:
+				c.ss.prevno = 5000
+			case ST_C:
+				c.ss.prevno = 5010
+			case ST_A:
+				c.ss.prevno = 5020
+			case ST_L:
+				c.ss.prevno = 5080
+			}
 		} else if c.ss.stateType == ST_L {
 			if c.pos[1] == 0 {
 				c.changeStateEx(5080, pn, -1, 0, false)
@@ -5998,7 +6035,7 @@ func (c *Char) cueDraw() {
 			c.exitTarget(false)
 		}
 		if sys.supertime < 0 && c.teamside != sys.superplayer&1 {
-			c.superDefenseMul = sys.superp2defmul
+			c.superDefenseMul *= sys.superp2defmul
 		}
 		c.minus = 2
 		c.oldPos = c.pos
@@ -6412,7 +6449,7 @@ func (cl *CharList) clsn(getter *Char, proj bool) {
 					} else {
 						getter.bindPos[1] = float32(math.NaN())
 					}
-				} else if getter.bindToId == c.id || getter.bindToId == -c.id {
+				} else if getter.bindToId == c.id {
 					getter.setBindTime(0)
 				}
 			} else if hitType == 1 {
@@ -6465,9 +6502,9 @@ func (cl *CharList) clsn(getter *Char, proj bool) {
 				if kill || !live {
 					getter.ghv.fatal = true
 					getter.ghv.fallf = true
-					if getter.ghv.fall.animtype < RA_Back {
-						getter.ghv.fall.animtype = RA_Back
-					}
+					// if getter.ghv.fall.animtype < RA_Back {
+					// getter.ghv.fall.animtype = RA_Back
+					// }
 					if getter.kovelocity && !sys.sf(GSF_nokovelocity) {
 						if getter.ss.stateType == ST_A {
 							if getter.ghv.xvel < 0 {
@@ -6872,7 +6909,8 @@ func (cl *CharList) clsn(getter *Char, proj bool) {
 		getter.enemyNearClear()
 		for _, c := range cl.runOrder {
 			if c.atktmp != 0 && c.id != getter.id && (c.hitdef.affectteam == 0 ||
-				(getter.teamside != c.teamside) == (c.hitdef.affectteam > 0)) {
+				((getter.teamside != c.hitdef.teamside-1) == (c.hitdef.affectteam > 0) && c.hitdef.teamside >= 0) ||
+				((getter.teamside != c.teamside) == (c.hitdef.affectteam > 0) && c.hitdef.teamside < 0)) {
 				dist := -getter.distX(c, getter) * c.facing
 				if c.ss.moveType == MT_A && dist >= 0 && c.hitdef.guard_dist < 0 &&
 					dist <= c.attackDist*(c.localscl/getter.localscl) {
@@ -6921,6 +6959,27 @@ func (cl *CharList) clsn(getter *Char, proj bool) {
 									getter.mctype = MC_Reversed
 									getter.mctime = -1
 									getter.hitdefContact = true
+
+									fall := getter.ghv.fallf
+									getter.ghv.clear()
+									getter.ghv.attr = c.hitdef.attr
+									getter.ghv.hitid = c.hitdef.id
+									getter.ghv.fall = c.hitdef.fall
+									getter.fallTime = 0
+									getter.ghv.fall.xvelocity = c.hitdef.fall.xvelocity * (c.localscl / getter.localscl)
+									getter.ghv.fall.yvelocity = c.hitdef.fall.yvelocity * (c.localscl / getter.localscl)
+									if c.hitdef.forcenofall {
+										fall = false
+									}
+									if getter.ss.stateType == ST_A {
+										getter.ghv.fallf = c.hitdef.air_fall
+									} else if getter.ss.stateType == ST_L {
+										getter.ghv.fallf = c.hitdef.ground_fall
+									} else {
+										getter.ghv.fallf = c.hitdef.ground_fall
+									}
+									getter.ghv.fallf = getter.ghv.fallf || fall
+
 									getter.targetsOfHitdef = append(getter.targetsOfHitdef, c.id)
 									if getter.hittmp == 0 {
 										getter.hittmp = -1
@@ -7081,26 +7140,33 @@ func (cl *CharList) enemyNear(c *Char, n int32, p2, ignoreDefeatedEnemy, log boo
 	if int(n) < len(*cache) {
 		return (*cache)[n]
 	}
-	*cache = (*cache)[:0]
-	var add func(*Char, int)
-	add = func(e *Char, idx int) {
+	if p2 {
+		cache = &c.p2enemy
+	} else {
+		*cache = (*cache)[:0]
+	}
+	var add func(*Char, int, float32)
+	add = func(e *Char, idx int, adddist float32) {
 		for i := idx; i <= int(n); i++ {
 			if i >= len(*cache) {
 				*cache = append(*cache, e)
 				return
 			}
-			if AbsF(c.distX(e, c)) < AbsF(c.distX((*cache)[i], c)) {
-				add((*cache)[i], i+1)
+			if AbsF(c.distX(e, c))+adddist < AbsF(c.distX((*cache)[i], c)) {
+				add((*cache)[i], i+1, adddist)
 				(*cache)[i] = e
 				return
 			}
 		}
 	}
 	for _, e := range cl.runOrder {
-		if e.player && e.teamside != c.teamside && !e.scf(SCF_standby) &&
-			(p2 && !e.scf(SCF_ko_round_middle) ||
-				(!p2 && e.helperIndex == 0 && (!ignoreDefeatedEnemy || ignoreDefeatedEnemy && (!e.scf(SCF_ko_round_middle) || sys.roundEnd())))) {
-			add(e, 0)
+		if e.player && e.teamside != c.teamside && !e.scf(SCF_standby) {
+			if p2 && !e.scf(SCF_ko_round_middle) {
+				add(e, 0, 30)
+			}
+			if !p2 && e.helperIndex == 0 && (!ignoreDefeatedEnemy || ignoreDefeatedEnemy && (!e.scf(SCF_ko_round_middle) || sys.roundEnd())) {
+				add(e, 0, 0)
+			}
 		}
 	}
 	if int(n) >= len(*cache) {
