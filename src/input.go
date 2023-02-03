@@ -8,9 +8,9 @@ import (
 	"time"
 )
 
-var ModAlt          = NewModifierKey(false, true, false)
-var ModCtrlAlt      = NewModifierKey(true,  true, false)
-var ModCtrlAltShift = NewModifierKey(true,  true, true)
+var ModAlt = NewModifierKey(false, true, false)
+var ModCtrlAlt = NewModifierKey(true, true, false)
+var ModCtrlAltShift = NewModifierKey(true, true, true)
 
 type CommandKey byte
 
@@ -100,7 +100,7 @@ func NewShortcutKey(key Key, ctrl, alt, shift bool) *ShortcutKey {
 }
 
 func (sk ShortcutKey) Test(k Key, m ModifierKey) bool {
-	return k == sk.Key && (m & ModCtrlAltShift) == sk.Mod
+	return k == sk.Key && (m&ModCtrlAltShift) == sk.Mod
 }
 
 func OnKeyReleased(key Key, mk ModifierKey) {
@@ -116,7 +116,7 @@ func OnKeyPressed(key Key, mk ModifierKey) {
 		sys.keyState[key] = true
 		sys.keyInput = key
 		sys.esc = sys.esc ||
-			key == KeyEscape && (mk & ModCtrlAlt) == 0
+			key == KeyEscape && (mk&ModCtrlAlt) == 0
 		for k, v := range sys.shortcutScripts {
 			if sys.netInput == nil && (sys.fileInput == nil || !v.DebugKey) &&
 				(!sys.paused || sys.step || v.Pause) && (sys.allowDebugKeys || !v.DebugKey) {
@@ -126,7 +126,7 @@ func OnKeyPressed(key Key, mk ModifierKey) {
 		if key == KeyF12 {
 			captureScreen()
 		}
-		if key == KeyEnter && (mk & ModAlt) != 0 {
+		if key == KeyEnter && (mk&ModAlt) != 0 {
 			sys.window.toggleFullscreen()
 		}
 	}
@@ -143,38 +143,38 @@ func JoystickState(joy, button int) bool {
 	if joy >= input.GetMaxJoystickCount() {
 		return false
 	}
-	btns := input.GetJoystickButtons(joy)
-	if button < 0 {
-		button = -button - 1
-		axes := input.GetJoystickAxes(joy)
-
-		if len(axes)*2 <= button {
+	if button >= 0 {
+		// Query button state
+		btns := input.GetJoystickButtons(joy)
+		if button >= len(btns) {
 			return false
 		}
+		return btns[button] != 0
+	} else {
+		// Query axis state
+		axis := -button - 1
+		axes := input.GetJoystickAxes(joy)
+		if axis >= len(axes)*2 {
+			return false
+		}
+
+		// Read value and invert sign for odd indices
+		val := axes[axis/2] * float32((axis&1)*2-1)
 
 		var joyName = input.GetJoystickName(joy)
 
-		//Xbox360コントローラーのLRトリガー判定
-		if (button == 9 || button == 11) && (strings.Contains(joyName, "XInput") || strings.Contains(joyName, "X360")) {
-			return axes[button/2] > sys.xinputTriggerSensitivity
+		// Xbox360コントローラーのLRトリガー判定
+		if (axis == 9 || axis == 11) && (strings.Contains(joyName, "XInput") || strings.Contains(joyName, "X360")) {
+			return val > sys.xinputTriggerSensitivity
 		}
 
 		// Ignore trigger axis on PS4 (We already have buttons)
-		if (button >= 6 && button <= 9) && joyName == "PS4 Controller" {
+		if (axis >= 6 && axis <= 9) && joyName == "PS4 Controller" {
 			return false
 		}
 
-		switch button & 1 {
-		case 0:
-			return axes[button/2] < -sys.controllerStickSensitivity
-		case 1:
-			return axes[button/2] > sys.controllerStickSensitivity
-		}
+		return val > sys.controllerStickSensitivity
 	}
-	if len(btns) <= button {
-		return false
-	}
-	return btns[button] != 0
 }
 
 type KeyConfig struct{ Joy, dU, dD, dL, dR, kA, kB, kC, kX, kY, kZ, kS, kD, kW, kM int }
@@ -564,19 +564,20 @@ func (nb *NetBuffer) input(cb *CommandBuffer, f int32) {
 }
 
 type NetInput struct {
-	ln         *net.TCPListener
-	conn       *net.TCPConn
-	st         NetState
-	sendEnd    chan bool
-	recvEnd    chan bool
-	buf        [MaxSimul*2 + MaxAttachedChar]NetBuffer
-	locIn      int
-	remIn      int
-	time       int32
-	stoppedcnt int32
-	delay      int32
-	rep        *os.File
-	host       bool
+	ln           *net.TCPListener
+	conn         *net.TCPConn
+	st           NetState
+	sendEnd      chan bool
+	recvEnd      chan bool
+	buf          [MaxSimul*2 + MaxAttachedChar]NetBuffer
+	locIn        int
+	remIn        int
+	time         int32
+	stoppedcnt   int32
+	delay        int32
+	rep          *os.File
+	host         bool
+	preFightTime int32
 }
 
 func NewNetInput() *NetInput {
@@ -718,8 +719,22 @@ func (ni *NetInput) Synchronize() error {
 		}
 	}
 	Srand(seed)
+	var pfTime int32
+	if ni.host {
+		pfTime = sys.preFightTime
+		if err := ni.writeI32(pfTime); err != nil {
+			return err
+		}
+	} else {
+		var err error
+		if pfTime, err = ni.readI32(); err != nil {
+			return err
+		}
+	}
+	ni.preFightTime = pfTime
 	if ni.rep != nil {
 		binary.Write(ni.rep, binary.LittleEndian, &seed)
+		binary.Write(ni.rep, binary.LittleEndian, &pfTime)
 	}
 	if err := ni.writeI32(ni.time); err != nil {
 		return err
@@ -833,8 +848,9 @@ func (ni *NetInput) Update() bool {
 }
 
 type FileInput struct {
-	f  *os.File
-	ib [MaxSimul*2 + MaxAttachedChar]InputBits
+	f      *os.File
+	ib     [MaxSimul*2 + MaxAttachedChar]InputBits
+	pfTime int32
 }
 
 func OpenFileInput(filename string) *FileInput {
@@ -866,6 +882,10 @@ func (fi *FileInput) Synchronize() {
 		var seed int32
 		if binary.Read(fi.f, binary.LittleEndian, &seed) == nil {
 			Srand(seed)
+		}
+		var pfTime int32
+		if binary.Read(fi.f, binary.LittleEndian, &pfTime) == nil {
+			fi.pfTime = pfTime
 			fi.Update()
 		}
 	}

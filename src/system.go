@@ -51,6 +51,8 @@ var sys = System{
 	soundChannels:     newSoundChannels(16),
 	allPalFX:          *newPalFX(),
 	bgPalFX:           *newPalFX(),
+	ffx:               make(map[string]*FightFx),
+	ffxRegexp:         "^(f)|^(s)|^(go)",
 	sel:               *newSelect(),
 	keyState:          make(map[Key]bool),
 	match:             1,
@@ -122,6 +124,8 @@ type System struct {
 	soundChannels           *SoundChannels
 	allPalFX, bgPalFX       PalFX
 	lifebar                 Lifebar
+	ffx                     map[string]*FightFx
+	ffxRegexp               string
 	sel                     Select
 	keyState                map[Key]bool
 	netInput                *NetInput
@@ -218,6 +222,7 @@ type System struct {
 	zoomPosYLag             float32
 	enableZoomtime          int32
 	zoomCameraBound         bool
+	zoomStageBound          bool
 	zoomPos                 [2]float32
 	debugWC                 *Char
 	cam                     Camera
@@ -259,8 +264,6 @@ type System struct {
 	loseTag                 bool
 	allowDebugKeys          bool
 	allowDebugMode          bool
-	commonAir               string
-	commonCmd               string
 	keyInput                Key
 	keyString               string
 	timerCount              []int32
@@ -273,6 +276,14 @@ type System struct {
 	windowTitle             string
 	screenshotFolder        string
 	//FLAC_FrameWait          int
+	
+	// Common Files
+	commonAir    string
+	commonCmd    string
+	commonConst  string
+	commonFx     []string
+	commonLua    []string
+	commonStates []string
 
 	// Resolution variables
 	fullscreen            bool
@@ -327,9 +338,6 @@ type System struct {
 	matchData       *lua.LTable
 	consecutiveWins [2]int32
 	teamLeader      [2]int
-	commonConst     string
-	commonLua       []string
-	commonStates    []string
 	gameSpeed       float32
 	maxPowerMode    bool
 	clsnText        []ClsnText
@@ -354,6 +362,8 @@ type System struct {
 	stereoEffects   bool
 	panningRange    float32
 	windowCentered  bool
+	loopBreak       bool
+	loopContinue    bool
 }
 
 // Initialize stuff, this is called after the config int at main.go
@@ -842,7 +852,7 @@ func (s *System) nextRound() {
 	}
 	for _, p := range s.chars {
 		if len(p) > 0 {
-			p[0].selfState(5900, 0, -1, 0, false)
+			p[0].selfState(5900, 0, -1, 0, "")
 		}
 	}
 }
@@ -1017,6 +1027,7 @@ func (s *System) action() {
 			s.enableZoomtime--
 		} else {
 			s.zoomCameraBound = true
+			s.zoomStageBound = true
 		}
 		if s.super > 0 {
 			s.super--
@@ -1071,7 +1082,7 @@ func (s *System) action() {
 					for i, p := range s.chars {
 						if len(p) > 0 {
 							s.playerClear(i, false)
-							p[0].selfState(0, -1, -1, 0, false)
+							p[0].selfState(0, -1, -1, 0, "")
 						}
 					}
 					ox := newx
@@ -1166,7 +1177,7 @@ func (s *System) action() {
 							if p[0].ss.no == 0 {
 								p[0].setCtrl(true)
 							} else {
-								p[0].selfState(0, -1, -1, 1, false)
+								p[0].selfState(0, -1, -1, 1, "")
 							}
 						}
 					}
@@ -1362,11 +1373,11 @@ func (s *System) action() {
 							if !p[0].scf(SCF_over) && !p[0].hitPause() && p[0].alive() && p[0].animNo != 5 {
 								p[0].setSCF(SCF_over)
 								if p[0].win() {
-									p[0].selfState(180, -1, -1, 1, false)
+									p[0].selfState(180, -1, -1, 1, "")
 								} else if p[0].lose() {
-									p[0].selfState(170, -1, -1, 1, false)
+									p[0].selfState(170, -1, -1, 1, "")
 								} else {
-									p[0].selfState(175, -1, -1, 1, false)
+									p[0].selfState(175, -1, -1, 1, "")
 								}
 							}
 						}
@@ -2024,9 +2035,14 @@ func (s *System) fight() (reload bool) {
 					s.zoomPosYLag += ((s.zoomPos[1] - s.zoomPosYLag) * (1 - s.zoomlag))
 					s.drawScale = s.drawScale / (s.drawScale + (s.zoomScale*scl-s.drawScale)*s.zoomlag) * s.zoomScale * scl
 				}
-				if s.zoomCameraBound {
+				if s.zoomStageBound {
 					dscl = MaxF(s.cam.MinScale, s.drawScale/s.cam.BaseScale())
-					dx = s.cam.XBound(dscl, x+ClampF(s.zoomPosXLag/scl, -s.cam.halfWidth/scl*2*(1-1/s.zoomScale), s.cam.halfWidth/scl*2*(1-1/s.zoomScale)))
+					if s.zoomCameraBound {
+						dx = x + ClampF(s.zoomPosXLag/scl, -s.cam.halfWidth/scl*2*(1-1/s.zoomScale), s.cam.halfWidth/scl*2*(1-1/s.zoomScale))
+					} else {
+						dx = x + s.zoomPosXLag/scl
+					}
+					dx = s.cam.XBound(dscl, dx)
 				} else {
 					dscl = s.drawScale / s.cam.BaseScale()
 					dx = x + s.zoomPosXLag/scl
