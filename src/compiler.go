@@ -285,7 +285,6 @@ var triggerMap = map[string]int{
 	"projhit":           1,
 	"projhittime":       1,
 	"random":            1,
-	"reversaldefattr":   1,
 	"rightedge":         1,
 	"rootdist":          1,
 	"roundno":           1,
@@ -315,9 +314,13 @@ var triggerMap = map[string]int{
 	//new triggers
 	"animelemlength":   1,
 	"animlength":       1,
+	"attack":           1,
+	"bgmlength":        1,
+	"bgmposition":      1,
 	"combocount":       1,
 	"consecutivewins":  1,
 	"jugglepoints":     1,
+	"defence":          1,
 	"dizzy":            1,
 	"dizzypoints":      1,
 	"dizzypointsmax":   1,
@@ -345,15 +348,16 @@ var triggerMap = map[string]int{
 	"pausetime":        1,
 	"physics":          1,
 	"playerno":         1,
+	"prevanim":         1,
 	"ratiolevel":       1,
 	"receivedhits":     1,
 	"receiveddamage":   1,
 	"redlife":          1,
+	"reversaldefattr":  1,
 	"roundtype":        1,
 	"score":            1,
 	"scoretotal":       1,
 	"selfstatenoexist": 1,
-	"selfcommand":      1,
 	"sprpriority":      1,
 	"stagebackedge":    1,
 	"stageconst":       1,
@@ -1403,27 +1407,17 @@ func (c *Compiler) expValue(out *BytecodeExp, in *string,
 		out.append(OC_camerazoom)
 	case "canrecover":
 		out.append(OC_canrecover)
-	case "command", "selfcommand":
-		switch c.token {
-		case "command":
-			opc = OC_command
-		case "selfcommand":
-			opc = OC_ex_selfcommand
-		}
+	case "command":
 		if err := eqne(func() error {
 			if err := text(); err != nil {
 				return err
 			}
-			i, ok := c.cmdl.Names[c.token]
+			_, ok := c.cmdl.Names[c.token]
 			if !ok {
 				return Error("Command doesn't exist: " + c.token)
 			}
-			if opc == OC_command {
-				i = sys.stringPool[c.playerNo].Add(c.token)
-			} else {
-				out.append(OC_ex_)
-			}
-			out.appendI32Op(opc, int32(i))
+			i := sys.stringPool[c.playerNo].Add(c.token)
+			out.appendI32Op(OC_command, int32(i))
 			return nil
 		}); err != nil {
 			return bvNone(), err
@@ -2533,12 +2527,16 @@ func (c *Compiler) expValue(out *BytecodeExp, in *string,
 		out.append(OC_ex_, OC_ex_animelemlength)
 	case "animlength":
 		out.append(OC_ex_, OC_ex_animlength)
+	case "attack":
+		out.append(OC_ex_, OC_ex_attack)
 	case "combocount":
 		out.append(OC_ex_, OC_ex_combocount)
 	case "consecutivewins":
 		out.append(OC_ex_, OC_ex_consecutivewins)
 	case "jugglepoints":
 		out.append(OC_ex_, OC_ex_jugglepoints)
+	case "defence":
+		out.append(OC_ex_, OC_ex_defence)
 	case "dizzy":
 		out.append(OC_ex_, OC_ex_dizzy)
 	case "dizzypoints":
@@ -2634,6 +2632,10 @@ func (c *Compiler) expValue(out *BytecodeExp, in *string,
 			out.appendI32Op(OC_ex_isassertedchar, int32(CSF_animfreeze))
 		case "postroundinput":
 			out.appendI32Op(OC_ex_isassertedchar, int32(CSF_postroundinput))
+		case "nohitdamage":
+			out.appendI32Op(OC_ex_isassertedchar, int32(CSF_nohitdamage))
+		case "noguarddamage":
+			out.appendI32Op(OC_ex_isassertedchar, int32(CSF_noguarddamage))
 		case "nodizzypointsdamage":
 			out.appendI32Op(OC_ex_isassertedchar, int32(CSF_nodizzypointsdamage))
 		case "noguardpointsdamage":

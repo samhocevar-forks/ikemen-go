@@ -453,8 +453,10 @@ const (
 	OC_ex_ailevelf
 	OC_ex_animelemlength
 	OC_ex_animlength
+	OC_ex_attack
 	OC_ex_combocount
 	OC_ex_consecutivewins
+	OC_ex_defence
 	OC_ex_dizzy
 	OC_ex_dizzypoints
 	OC_ex_dizzypointsmax
@@ -511,7 +513,6 @@ const (
 	OC_ex_reversaldefattr
 	OC_ex_bgmlength
 	OC_ex_bgmposition
-	OC_ex_selfcommand
 )
 const (
 	NumVar     = 60
@@ -1152,7 +1153,16 @@ func (be BytecodeExp) run(c *Char) BytecodeValue {
 		case OC_canrecover:
 			sys.bcStack.PushB(c.canRecover())
 		case OC_command:
-			sys.bcStack.PushB(c.commandByName(sys.stringPool[sys.workingState.playerNo].List[*(*int32)(unsafe.Pointer(&be[i]))]))
+			if c.cmd == nil {
+				sys.bcStack.PushB(false)
+			} else {
+				pno := c.playerNo
+				if oc.stCgi().ikemenver[0] > 0 || oc.stCgi().ikemenver[1] > 0 {
+					pno = sys.workingState.playerNo
+				}
+				cmd, ok := c.cmd[pno].Names[sys.stringPool[sys.workingState.playerNo].List[*(*int32)(unsafe.Pointer(&be[i]))]]
+				sys.bcStack.PushB(ok && c.command(pno, cmd))
+			}
 			i += 4
 		case OC_ctrl:
 			sys.bcStack.PushB(c.ctrl())
@@ -1877,10 +1887,14 @@ func (be BytecodeExp) run_ex(c *Char, i *int, oc *Char) {
 		}
 	case OC_ex_animlength:
 		sys.bcStack.PushI(c.anim.totaltime)
+	case OC_ex_attack:
+		sys.bcStack.PushF(c.attackMul * 100)
 	case OC_ex_combocount:
 		sys.bcStack.PushI(c.comboCount())
 	case OC_ex_consecutivewins:
 		sys.bcStack.PushI(c.consecutiveWins())
+	case OC_ex_defence:
+		sys.bcStack.PushF(float32(c.finalDefense * 100))
 	case OC_ex_dizzy:
 		sys.bcStack.PushB(c.scf(SCF_dizzy))
 	case OC_ex_dizzypoints:
@@ -2020,10 +2034,6 @@ func (be BytecodeExp) run_ex(c *Char, i *int, oc *Char) {
 		} else {
 			sys.bcStack.PushI(int32(sys.bgm.streamer.Position()))
 		}
-	case OC_ex_selfcommand:
-		sys.bcStack.PushB(c.command(sys.workingState.playerNo,
-			int(*(*int32)(unsafe.Pointer(&be[*i])))))
-		*i += 4
 	default:
 		sys.errLog.Printf("%v\n", be[*i-1])
 		c.panic()
@@ -2145,7 +2155,9 @@ func (b StateBlock) Run(c *Char, ps []int32) (changeState bool) {
 			return false
 		}
 	}
-	sys.workingChar = c
+	// https://github.com/ikemen-engine/Ikemen-GO/issues/963
+	//sys.workingChar = c
+	sys.workingChar = sys.chars[c.ss.sb.playerNo][0]
 	if b.loopBlock {
 		if b.forLoop {
 			if b.forAssign {
@@ -2925,6 +2937,7 @@ const (
 	helper_remappal
 	helper_extendsmap
 	helper_inheritjuggle
+	helper_inheritchannels
 	helper_immortal
 	helper_kovelocity
 	helper_preserve
@@ -3024,6 +3037,8 @@ func (sc helper) Run(c *Char, _ []int32) bool {
 			extmap = exp[0].evalB(c)
 		case helper_inheritjuggle:
 			h.inheritJuggle = exp[0].evalI(c)
+		case helper_inheritchannels:
+			h.inheritChannels = exp[0].evalI(c)
 		case helper_immortal:
 			h.immortal = exp[0].evalB(c)
 		case helper_kovelocity:
@@ -4028,7 +4043,9 @@ const (
 	hitDef_givepower
 	hitDef_numhits
 	hitDef_hitsound
+	hitDef_hitsound_channel
 	hitDef_guardsound
+	hitDef_guardsound_channel
 	hitDef_priority
 	hitDef_p1stateno
 	hitDef_p2stateno
@@ -4165,12 +4182,16 @@ func (sc hitDef) runSub(c *Char, hd *HitDef, id byte, exp []BytecodeExp) bool {
 		if len(exp) > 2 {
 			hd.hitsound[1] = exp[2].evalI(c)
 		}
+	case hitDef_hitsound_channel:
+		hd.hitsound_channel = exp[0].evalI(c)
 	case hitDef_guardsound:
 		hd.guardsound_ffx = string(*(*[]byte)(unsafe.Pointer(&exp[0])))
 		hd.guardsound[0] = exp[1].evalI(c)
 		if len(exp) > 2 {
 			hd.guardsound[1] = exp[2].evalI(c)
 		}
+	case hitDef_guardsound_channel:
+		hd.guardsound_channel = exp[0].evalI(c)
 	case hitDef_priority:
 		hd.priority = exp[0].evalI(c)
 		hd.bothhittype = AiuchiType(exp[1].evalI(c))

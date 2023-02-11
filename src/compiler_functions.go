@@ -121,6 +121,10 @@ func (c *Compiler) assertSpecial(is IniSection, sc *StateControllerBase, _ int8)
 				sc.add(assertSpecial_flag, sc.iToExp(int32(CSF_animfreeze)))
 			case "postroundinput":
 				sc.add(assertSpecial_flag, sc.iToExp(int32(CSF_postroundinput)))
+			case "nohitdamage":
+				sc.add(assertSpecial_flag, sc.iToExp(int32(CSF_nohitdamage)))
+			case "noguarddamage":
+				sc.add(assertSpecial_flag, sc.iToExp(int32(CSF_noguarddamage)))
 			case "nodizzypointsdamage":
 				sc.add(assertSpecial_flag, sc.iToExp(int32(CSF_nodizzypointsdamage)))
 			case "noguardpointsdamage":
@@ -526,6 +530,10 @@ func (c *Compiler) helper(is IniSection, sc *StateControllerBase, _ int8) (State
 		}
 		if err := c.paramValue(is, sc, "inheritjuggle",
 			helper_inheritjuggle, VT_Int, 1, false); err != nil {
+			return err
+		}
+		if err := c.paramValue(is, sc, "inheritchannels",
+			helper_inheritchannels, VT_Int, 1, false); err != nil {
 			return err
 		}
 		if err := c.paramValue(is, sc, "immortal",
@@ -1238,9 +1246,17 @@ func (c *Compiler) hitDefSub(is IniSection,
 	}); err != nil {
 		return err
 	}
+	if err := c.paramValue(is, sc, "hitsound.channel",
+		hitDef_hitsound_channel, VT_Int, 1, false); err != nil {
+		return err
+	}
 	if err := c.stateParam(is, "guardsound", func(data string) error {
 		return hsnd(hitDef_guardsound, data)
 	}); err != nil {
+		return err
+	}
+	if err := c.paramValue(is, sc, "guardsound.channel",
+		hitDef_guardsound_channel, VT_Int, 1, false); err != nil {
 		return err
 	}
 	if err := c.stateParam(is, "priority", func(data string) error {
