@@ -255,6 +255,7 @@ type configSettings struct {
 	TrainingChar               string
 	TurnsRecoveryBase          float32
 	TurnsRecoveryBonus         float32
+	Ultras                     bool
 	VolumeBgm                  int
 	VolumeMaster               int
 	VolumeSfx                  int
