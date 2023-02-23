@@ -2468,7 +2468,7 @@ func (ro *LifeBarRound) draw(layerno int16, f []*Fnt) {
 					ro.win4[wt].text.text = tmp
 					ro.win4_top[wt].Draw(float32(ro.pos[0])+sys.lifebarOffsetX, float32(ro.pos[1]), layerno, sys.lifebarScale)
 				}
-			} else if sys.winTeam >= 0 {
+			} else if sys.winTeam >= 0 && sys.gameMode != "versus" {
 				tmp := ro.win[wt].text.text
 				for i := range ro.win_bg[wt] {
 					ro.win_bg[wt][i].Draw(float32(ro.pos[0])+sys.lifebarOffsetX, float32(ro.pos[1]), layerno, sys.lifebarScale)
