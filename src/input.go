@@ -179,10 +179,10 @@ func JoystickState(joy, button int) bool {
 
 type KeyConfig struct{ Joy, dU, dD, dL, dR, kA, kB, kC, kX, kY, kZ, kS, kD, kW, kM int }
 
-func (kc KeyConfig) U() bool { return JoystickState(kc.Joy, kc.dU) || JoystickState(kc.Joy, -3) }
-func (kc KeyConfig) D() bool { return JoystickState(kc.Joy, kc.dD) || JoystickState(kc.Joy, -4) }
-func (kc KeyConfig) L() bool { return JoystickState(kc.Joy, kc.dL) || JoystickState(kc.Joy, -1) }
-func (kc KeyConfig) R() bool { return JoystickState(kc.Joy, kc.dR) || JoystickState(kc.Joy, -2) }
+func (kc KeyConfig) U() bool { return JoystickState(kc.Joy, kc.dU) || (kc.dU >= 0 && JoystickState(kc.Joy, -3)) }
+func (kc KeyConfig) D() bool { return JoystickState(kc.Joy, kc.dD) || (kc.dD >= 0 && JoystickState(kc.Joy, -4)) }
+func (kc KeyConfig) L() bool { return JoystickState(kc.Joy, kc.dL) || (kc.dL >= 0 && JoystickState(kc.Joy, -1)) }
+func (kc KeyConfig) R() bool { return JoystickState(kc.Joy, kc.dR) || (kc.dR >= 0 && JoystickState(kc.Joy, -2)) }
 func (kc KeyConfig) a() bool { return JoystickState(kc.Joy, kc.kA) }
 func (kc KeyConfig) b() bool { return JoystickState(kc.Joy, kc.kB) }
 func (kc KeyConfig) c() bool { return JoystickState(kc.Joy, kc.kC) }
